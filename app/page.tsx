@@ -170,7 +170,14 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      let data: any;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        setError(`Server error (${res.status}): ${res.statusText}. Check that OPENAI_API_KEY is set in Vercel environment variables.`);
+        return;
+      }
       if (!res.ok) {
         if (data.needsManualInput && isSpotifyUrl(url)) {
           setSpotifyPrompt({ message: data.error ?? "Paste the transcript below to summarize." });

@@ -33,7 +33,10 @@ export async function buildEditionSections(): Promise<SectionContent[]> {
     if (section.id === "conclusions") continue;
     let text = "";
     if (section.feedUrl) {
-      text = await fetchRssFeed(section.feedUrl);
+      // Handle single URL or array of URLs
+      const urls = Array.isArray(section.feedUrl) ? section.feedUrl : [section.feedUrl];
+      const texts = await Promise.all(urls.map((url) => fetchRssFeed(url)));
+      text = texts.filter(Boolean).join("\n\n");
     }
     if (!text && section.optional) continue;
     sectionTexts.push({

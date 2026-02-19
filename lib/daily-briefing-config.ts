@@ -18,27 +18,62 @@ export type SectionId =
 export type SectionConfig = {
   id: SectionId;
   title: string;
-  /** RSS feed URL or API endpoint (free sources preferred). */
-  feedUrl?: string;
+  /** RSS feed URL(s) - can be a single URL or array of URLs to combine. */
+  feedUrl?: string | string[];
   /** When true, only include a blurb when something important that day. */
   optional?: boolean;
 };
 
 export const RENO_TIMES_SECTIONS: SectionConfig[] = [
   { id: "crypto", title: "Crypto", feedUrl: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
-  { id: "public_markets", title: "Public Markets", feedUrl: "https://feeds.content.dowjones.io/public/rss/mw_topstories" },
-  { id: "startups", title: "Startups / VC", feedUrl: "https://techcrunch.com/feed/" },
-  { id: "healthcare", title: "Healthcare (Kinnect / DSOs / Practices)" },
+  {
+    id: "public_markets",
+    title: "Public Markets",
+    feedUrl: [
+      "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+      "https://www.morningbrew.com/daily/rss",
+      "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
+      // If you have WSJ access, add: "https://feeds.wsj.com/rss/markets"
+    ],
+  },
+  {
+    id: "startups",
+    title: "Startups / VC",
+    feedUrl: [
+      "https://techcrunch.com/feed/",
+      "https://tldr.tech/rss",
+    ],
+  },
+  {
+    id: "healthcare",
+    title: "Healthcare (Kinnect / DSOs / Practices)",
+    feedUrl: [
+      "https://www.beckershospitalreview.com/rss.xml",
+      "https://www.modernhealthcare.com/rss.xml",
+      // "https://www.dentaleconomics.com/rss.xml", // Uncomment if needed
+    ],
+  },
   {
     id: "kinnect_scout",
     title: "Kinnect Scout (Competitors, threats, moves to watch)",
+    // No RSS feed; LLM will generate watchlist based on context from other sections
   },
   {
     id: "tools_ai",
     title: "Tools & AI (new workflows, marketing, ops upgrades)",
-    feedUrl: "https://www.producthunt.com/feed",
+    feedUrl: [
+      "https://www.producthunt.com/feed",
+      "https://tldr.tech/rss",
+    ],
   },
-  { id: "politics_global", title: "Politics & Global (market impact)" },
+  {
+    id: "politics_global",
+    title: "Politics & Global (market impact)",
+    feedUrl: [
+      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+      "https://feeds.bloomberg.com/markets/news.rss",
+    ],
+  },
   { id: "foreign_markets", title: "Foreign Markets", optional: true },
   { id: "conclusions", title: "Conclusions / So what?", optional: false },
 ];

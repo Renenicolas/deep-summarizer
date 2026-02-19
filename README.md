@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DeepSummarizer
 
-## Getting Started
+Next.js App Router fullstack app: summarize text, PDFs, URLs (YouTube, articles, Spotify metadata), with deep summary, key bullets, “should I read?” verdict, TTS, and Notion-ready Markdown export.
 
-First, run the development server:
+## Tech
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Next.js** (App Router), **Tailwind CSS**, **NextAuth** (Spotify)
+- **Backend:** `/api/summarize` (extraction + chunking + OpenAI), `/api/tts` (OpenAI TTS)
+- **Inputs:** Paste text, upload PDF/TXT, or paste URL (YouTube, article, Spotify)
+- **Output:** Deep summary, key bullets, verdict + reasons, Generate Audio (OpenAI TTS + browser fallback), Copy as Markdown
+- **History:** Stored in browser `localStorage` (JSON)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Clone and install**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm install
+   ```
 
-## Learn More
+2. **Environment variables**
 
-To learn more about Next.js, take a look at the following resources:
+   Copy `.env.example` to `.env.local` and fill in:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   - **OPENAI_API_KEY** — Required for summarization and TTS. Get from [OpenAI API keys](https://platform.openai.com/api-keys).
+   - **NEXTAUTH_SECRET** — Random string for session encryption (e.g. `openssl rand -base64 32`).
+   - **NEXTAUTH_URL** — Must be `http://127.0.0.1:3000` for Spotify auth to work.
+   - **SPOTIFY_CLIENT_ID** and **SPOTIFY_CLIENT_SECRET** — From [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). Add these Redirect URIs in your app settings:
+     - `http://127.0.0.1:3000/api/auth/callback/spotify`
+     - `http://localhost:3000/api/auth/callback/spotify` (if you use localhost)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. **Run**
 
-## Deploy on Vercel
+   ```bash
+   npm run dev
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   **Important:** Open [http://127.0.0.1:3000](http://127.0.0.1:3000) — not localhost. Your `NEXTAUTH_URL` and Spotify redirect URI must match.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Input handling
+
+- **Paste text:** Summarized as-is.
+- **Upload file:** PDF (via `pdf-parse`) or TXT; text is extracted then summarized.
+- **URL:**
+  - **YouTube:** Transcript/captions fetched with `youtube-transcript`; if unavailable, a clear error is shown.
+  - **Article/blog:** HTML fetched and main content extracted with Cheerio.
+  - **Spotify:** Only metadata (episode title, show) via Spotify oEmbed. No audio is ever ripped. If no transcript is available, the app asks the user to paste a transcript or upload a file.
+
+## API
+
+- **POST /api/summarize**  
+  Body: `{ type: "paste" | "file" | "url", text?, url?, fileBase64?, fileName?, mimeType? }`  
+  Returns: `{ deepSummary, bullets, verdict, verdictReasons, sourcesUsed }`.
+
+- **POST /api/tts**  
+  Body: `{ text: string }`  
+  Returns: `audio/mpeg` (OpenAI TTS).
+
+## TTS
+
+- **Generate Audio:** Uses OpenAI TTS when `OPENAI_API_KEY` is set.
+- **Speak (browser):** Fallback using the browser’s Speech Synthesis API.
+
+## History
+
+Past summaries are stored in `localStorage` under the key `deep-summarizer-history` (JSON array). Click an item in the History list to load that summary again.

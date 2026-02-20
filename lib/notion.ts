@@ -206,6 +206,7 @@ export async function createRenoTimesEdition(params: {
       parent: { database_id: databaseId.replace(/-/g, "") },
       properties: props,
       children: params.children as any,
+      icon: { type: "emoji" as const, emoji: "📰" },
     });
 
   let response: any;
@@ -216,7 +217,6 @@ export async function createRenoTimesEdition(params: {
     } as any);
   } catch (e: any) {
     const msg = String(e?.body?.message ?? e?.message ?? "");
-    // If the Editions DB doesn't have a Date column, retry without it.
     if (msg.toLowerCase().includes("date is not a property")) {
       response = await baseCreate({
         Name: { title: [{ type: "text", text: { content: params.title.slice(0, 2000) } }] },
@@ -228,6 +228,43 @@ export async function createRenoTimesEdition(params: {
   const pageId = (response as { id: string }).id;
   const url = (response as { url?: string }).url ?? `https://notion.so/${pageId.replace(/-/g, "")}`;
   return { pageId, url };
+}
+
+/** Update the Reno Times "front page" so it shows today's newsletter content. Clears the page and appends the given blocks. Set NOTION_RENO_TIMES_FRONT_PAGE_ID in env. */
+export async function updateRenoTimesFrontPage(children: object[]): Promise<void> {
+  const apiKey = process.env.NOTION_API_KEY;
+  const frontPageId = process.env.NOTION_RENO_TIMES_FRONT_PAGE_ID;
+  if (!apiKey || !frontPageId) return;
+
+  const notion = new Client({ auth: apiKey });
+  const pageId = frontPageId.replace(/-/g, "");
+
+  let cursor: string | undefined;
+  do {
+    const list = (await notion.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+      start_cursor: cursor,
+    })) as { results?: { id: string }[]; next_cursor?: string };
+    const blocks = list.results ?? [];
+    for (const block of blocks) {
+      try {
+        await notion.blocks.delete({ block_id: block.id });
+      } catch {
+        // ignore
+      }
+    }
+    cursor = list.next_cursor ?? undefined;
+  } while (cursor);
+
+  const chunkSize = 100;
+  for (let i = 0; i < children.length; i += chunkSize) {
+    const chunk = children.slice(i, i + chunkSize);
+    await notion.blocks.children.append({
+      block_id: pageId,
+      children: chunk as any,
+    });
+  }
 }
 
 /** List page IDs in The Reno Times – Editions database. (Currently unused; editions stay in the database.) */

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createRenoTimesEdition,
+  updateRenoTimesFrontPage,
 } from "@/lib/notion";
 import {
   buildEditionSections,
@@ -36,12 +37,32 @@ function bulletedItem(content: string) {
   };
 }
 
+function paragraphWithLinks(links: { label: string; url: string }[]): object {
+  const parts: { type: "text"; text: { content: string; link?: { url: string } } }[] = [];
+  parts.push({ type: "text", text: { content: "Read further: " } });
+  links.slice(0, 6).forEach((l, i) => {
+    if (i > 0) parts.push({ type: "text", text: { content: " · " } });
+    parts.push({
+      type: "text",
+      text: { content: (l.label || "Source").slice(0, 100), link: { url: l.url.slice(0, 2000) } },
+    });
+  });
+  return {
+    object: "block" as const,
+    type: "paragraph" as const,
+    paragraph: { rich_text: parts },
+  };
+}
+
 function sectionToBlocks(section: SectionContent): object[] {
   const blocks: object[] = [];
   blocks.push(heading2(section.title));
   blocks.push(paragraph(section.tldr));
   for (const b of section.bullets ?? []) {
     blocks.push(bulletedItem(b));
+  }
+  if (section.sources?.length) {
+    blocks.push(paragraphWithLinks(section.sources));
   }
   return blocks;
 }
@@ -86,6 +107,12 @@ export async function GET(req: Request) {
       date: dateStr,
       children,
     });
+
+    try {
+      await updateRenoTimesFrontPage(children);
+    } catch (e) {
+      console.error("Front page update failed (set NOTION_RENO_TIMES_FRONT_PAGE_ID to enable):", e);
+    }
 
     return NextResponse.json({
       ok: true,

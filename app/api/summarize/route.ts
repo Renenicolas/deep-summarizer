@@ -10,9 +10,13 @@ import { recordSummarizeUsage } from "@/lib/usage";
 
 export const maxDuration = 60;
 
+function jsonResponse(data: object, status: number) {
+  return NextResponse.json(data, { status, headers: { "Content-Type": "application/json" } });
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { type, text, url, fileBase64, fileName, mimeType, title } = body as {
       type?: string;
       text?: string;
@@ -24,10 +28,7 @@ export async function POST(req: Request) {
     };
 
     if (!type) {
-      return NextResponse.json(
-        { error: "Missing type: paste | file | url | podcast_title" },
-        { status: 400 }
-      );
+      return jsonResponse({ error: "Missing type: paste | file | url | podcast_title" }, 400);
     }
 
     let extractResult;
@@ -35,10 +36,7 @@ export async function POST(req: Request) {
       extractResult = await extractFromPaste(text ?? "");
     } else if (type === "file") {
       if (!fileBase64 || !fileName) {
-        return NextResponse.json(
-          { error: "Missing fileBase64 or fileName" },
-          { status: 400 }
-        );
+        return jsonResponse({ error: "Missing fileBase64 or fileName" }, 400);
       }
       extractResult = await extractFromFile(
         fileBase64,
@@ -50,27 +48,21 @@ export async function POST(req: Request) {
     } else if (type === "podcast_title") {
       extractResult = await extractFromPodcastTitle(title ?? "");
     } else {
-      return NextResponse.json(
-        { error: "Invalid type. Use paste, file, url, or podcast_title." },
-        { status: 400 }
-      );
+      return jsonResponse({ error: "Invalid type. Use paste, file, url, or podcast_title." }, 400);
     }
 
     if (!extractResult.ok) {
-      return NextResponse.json(
-        {
-          error: extractResult.error,
-          needsManualInput: extractResult.needsManualInput,
-        },
-        { status: 422 }
+      return jsonResponse(
+        { error: extractResult.error, needsManualInput: extractResult.needsManualInput },
+        422
       );
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "OPENAI_API_KEY is not configured" },
-        { status: 500 }
+      return jsonResponse(
+        { error: "OPENAI_API_KEY is not set in Vercel. Add it in Project → Settings → Environment Variables, then redeploy." },
+        500
       );
     }
 
@@ -91,9 +83,6 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Summarization failed";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return jsonResponse({ error: message }, 500);
   }
 }

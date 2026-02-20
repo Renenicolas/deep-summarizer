@@ -104,7 +104,7 @@ NOTION_NEWSPAPER_DATABASE_ID=your-reno-times-editions-database-id
 - **NOTION_DATABASE_ID** – Knowledge Bank database ID from Part 3.
 - **NOTION_NEWSPAPER_DATABASE_ID** – The Reno Times – Editions database ID from Part 3.
 
-Optional for daily briefing cron: add `CRON_SECRET=some-random-secret` and use it in the cron URL (see Part 7).
+Optional for daily briefing: add `CRON_SECRET=...` for the cron URL (see Part 7). Optional for front page: add `NOTION_RENO_TIMES_FRONT_PAGE_ID=your-notion-page-id` (the page that should show today’s newsletter; see RENO_TIMES_UI_AND_FRONT_PAGE.md).
 
 ---
 

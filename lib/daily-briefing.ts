@@ -49,7 +49,8 @@ export async function buildEditionSections(): Promise<SectionContent[]> {
     if (section.id === "conclusions") continue;
     let text = "";
     const allLinks: { label: string; url: string }[] = [];
-    if (section.id === "major_news") {
+    const sectionId = section.id as string;
+    if (sectionId === "major_news") {
       text = `Today's date: ${todayLabel}. ONLY include this section if there is a major release or one-off event that many people care about—e.g. Bain annual report, McKinsey report, major consulting/industry report, big product launch (Apple, Google, OpenAI, etc.), major regulatory or world news. If nothing like that is happening or you're not sure, output TL;DR: Nothing major today. and one short line; keep it rare. If there IS something major, write 1–3 short paragraphs with context and "So what for you / Actionables" as usual.`;
       sectionTexts.push({ id: section.id, title: section.title, text, links: [] });
       continue;

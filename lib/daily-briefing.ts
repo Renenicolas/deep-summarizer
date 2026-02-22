@@ -43,10 +43,17 @@ export async function fetchRssFeedWithLinks(feedUrl: string, maxItems = 15): Pro
 export async function buildEditionSections(): Promise<SectionContent[]> {
   const sectionTexts: { id: string; title: string; text: string; links: { label: string; url: string }[] }[] = [];
 
+  const todayLabel = new Date().toISOString().slice(0, 10);
+
   for (const section of RENO_TIMES_SECTIONS) {
     if (section.id === "conclusions") continue;
     let text = "";
     const allLinks: { label: string; url: string }[] = [];
+    if (section.id === "major_news") {
+      text = `Today's date: ${todayLabel}. ONLY include this section if there is a major release or one-off event that many people care about—e.g. Bain annual report, McKinsey report, major consulting/industry report, big product launch (Apple, Google, OpenAI, etc.), major regulatory or world news. If nothing like that is happening or you're not sure, output TL;DR: Nothing major today. and one short line; keep it rare. If there IS something major, write 1–3 short paragraphs with context and "So what for you / Actionables" as usual.`;
+      sectionTexts.push({ id: section.id, title: section.title, text, links: [] });
+      continue;
+    }
     if (section.feedUrl) {
       const urls = Array.isArray(section.feedUrl) ? section.feedUrl : [section.feedUrl];
       const results = await Promise.all(urls.map((url) => fetchRssFeedWithLinks(url)));
@@ -87,32 +94,38 @@ export async function buildEditionSections(): Promise<SectionContent[]> {
     )
     .join("\n");
 
-  const prompt = `You are writing The Reno Times, a daily briefing for Rene (founder of Kinnect). Write so a middle-schooler could understand—simple, clear language, no jargon without explaining it.
+  const prompt = `You are writing The Reno Times, a daily briefing newsletter modeled after Finimize, Morning Brew, and TLDR. Digestible but with enough context that Rene fully understands each point. Total read: under 15 minutes.
+
+STYLE (Morning Brew / TLDR / Finimize):
+- Each section: short headline, then TL;DR (one sentence), then 2–4 short PARAGRAPHS (not bare bullets). Each paragraph must give CONTEXT: what happened, why it matters, who it affects, and enough background so Rene can understand without reading the source.
+- After the paragraphs in that section, add "So what for you / Actionables": 2–3 bullets specific to Rene/Kinnect—what to do, watch, or avoid and why. So-what lives at the end of EACH section only (no separate Conclusions section).
+- If a section has NO concrete news or update (e.g. no new competitor move, no new tool, no real market move): do NOT write generic filler like "Waiting for new information", "Focus on key competitors", or "Monitor trends". Write one short line only: "Nothing major today." or "Quiet day—no major moves." and move on. Only write substantive content when there is real news.
+- When there IS news: give full context in 2–4 sentences per point so Rene fully understands, then the so-what bullets.
 
 RULES:
-1. DEPTH: Every point must be specific, not generic. No filler like "monitor trends" or "stay informed." Say exactly what happened, why it matters, and what to do.
-2. SO WHAT AT END OF EACH SECTION: At the end of every section (before any links), include 2–4 bullets under a clear subheading "So what for you / Actionables" that are specific to that section: what Rene should do, watch, or avoid and why. Make it super clear so no further inquiry is needed.
-3. INSTITUTIONAL MEMORY: Reference recent context where relevant. Be specific to Rene's company and life.
-4. PUBLIC MARKETS: Structure the Public Markets section in two parts: (a) Overall market – professional investor view (macro, indices, rates, what it means for the market as a whole, key levels or catalysts). (b) Top stocks / equity research – name 3–5 stocks to look into, why each matters, professional-level analysis (thesis, risk, what to watch), so Rene fully understands each pick.
-5. CRYPTO/MARKETS: Write like a professional desk: concrete levels, catalysts, what to do (e.g. "If BTC holds above X, watch Y; else Z").
-6. TOOLS & AI: For every tool: (a) What it is, (b) How Rene/Kinnect could use it, (c) Cost, (d) Setup time, (e) Integration, (f) Worth it? (yes/no + why). Be meticulous.
-7. CONCLUSIONS: Final section with 4–6 specific actionables: what to do this week, what to watch, what to avoid. No generic "stay informed"—name the regulation or the move.
-8. SOURCE LINK LABELS: For "sources" in each section, output a short descriptive label for each link so Rene knows exactly what they'll learn when they click (e.g. "Why the Fed's move matters for tech stocks" not just the article title). Each label should be one short phrase that describes what the linked article explains.
+1. Middle-school language: simple, clear, no jargon without explaining.
+2. Every point specific—no filler. Say exactly what happened, why it matters, and what to do.
+3. SO WHAT AT END OF EACH SECTION (REQUIRED): 2–3 bullets "So what for you / Actionables" for that section only.
+4. INSTITUTIONAL MEMORY: Reference recent context where relevant. Be specific to Rene's company and life.
+5. PUBLIC MARKETS: (a) Overall market – professional view (macro, indices, rates, catalysts). (b) Top stocks – 3–5 with thesis, risk, what to watch.
+6. CRYPTO/MARKETS: Concrete levels, catalysts, what to do (e.g. "If BTC holds above X, watch Y").
+7. TOOLS & AI: For each tool: what it is, how Rene/Kinnect could use it, cost, setup time, worth it? (yes/no + why).
+8. SOURCE LINK LABELS: Descriptive label per link so Rene knows what he'll get when he clicks.
 
 ${kinnectContext}
 
 Sections and raw content:
-${sectionTexts.map((s) => `\n## ${s.title}\n${s.text.slice(0, 2500)}`).join("\n")}
+${sectionTexts.map((s) => `\n## ${s.title ?? "Section"}\n${(s.text ?? "").slice(0, 2500)}`).join("\n")}
 
-Available sources per section (use these exact URLs in your "sources" output; provide a descriptive "label" for each so the reader knows what they'll learn):
+Available sources per section (use these exact URLs in your "sources" output; provide a descriptive "label" for each):
 ${sourcesForPrompt}
 
-Output per section: TL;DR, 3–6 content bullets, then 2–4 "So what for you / Actionables" bullets, then "sources" with url + descriptive label. Add final section "Conclusions / So what?" with 4–6 specific actionables.
+Output per section: TL;DR (one sentence), then 2–4 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. If a section has no real news, output only a one-line TL;DR like "Nothing major today." and empty or minimal bullets. Do NOT output a "Conclusions" section—so-what is at the end of each section only.
 
 Respond with valid JSON only (no markdown):
 {
   "sections": [
-    { "id": "section_id", "title": "Section Title", "tldr": "...", "bullets": ["...", "So what: ...", ...], "sources": [ { "url": "exact URL from list", "label": "Short phrase: what reader will learn" } ] },
+    { "id": "section_id", "title": "Section Title", "tldr": "One sentence summary", "bullets": ["Paragraph 1: what happened and why.", "Paragraph 2: context and implications.", "So what / Actionables: what Rene should do/watch/avoid.", "So what / Actionables: ..."], "sources": [ { "url": "exact URL from list", "label": "Short phrase: what reader will learn" } ] },
     ...
   ]
 }`;

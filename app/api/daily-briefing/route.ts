@@ -241,21 +241,20 @@ export async function GET(req: Request) {
       children.push({
         object: "block" as const,
         type: "column_list" as const,
-        column_list: {},
-        children: [
-          {
-            object: "block" as const,
-            type: "column" as const,
-            column: { width_ratio: 0.82 },
-            children: leftColumnBlocks,
-          },
-          {
-            object: "block" as const,
-            type: "column" as const,
-            column: { width_ratio: 0.18 },
-            children: [calloutBlock],
-          },
-        ],
+        column_list: {
+          children: [
+            {
+              object: "block" as const,
+              type: "column" as const,
+              column: { width_ratio: 0.82, children: leftColumnBlocks },
+            },
+            {
+              object: "block" as const,
+              type: "column" as const,
+              column: { width_ratio: 0.18, children: [calloutBlock] },
+            },
+          ],
+        },
       } as any);
     } else if (calloutBlock) {
       children.push(calloutBlock);

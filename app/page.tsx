@@ -9,10 +9,13 @@ type Tab = "paste" | "file" | "url" | "podcast";
 
 type KeyIdea = { title: string; body: string };
 
+type DeepSummarySection = { title: string; body: string };
+
 type SummaryResult = {
   oneLiner?: string;
   quickTake?: string;
   keyIdeas?: KeyIdea[];
+  deepSummarySections?: DeepSummarySection[];
   deepSummary: string;
   bullets: string[];
   verdict: string;
@@ -36,33 +39,21 @@ function toMarkdown(result: SummaryResult): string {
   if (result.quickTake) {
     lines.push("## Quick take (30 sec)", "", result.quickTake, "");
   }
-  if (result.keyIdeas && result.keyIdeas.length > 0) {
-    lines.push("## Key ideas", "");
-    result.keyIdeas.forEach((k) => {
-      lines.push(`### ${k.title}`, "", k.body, "");
+  lines.push("", "## Should I read the full source?", "", `**${result.verdict}**`, "");
+  result.verdictReasons.forEach((r) => lines.push(r, ""));
+  if (result.deepSummarySections && result.deepSummarySections.length > 0) {
+    lines.push("", "## Deep Summary (Blinkist-style)", "");
+    result.deepSummarySections.forEach((s) => {
+      lines.push(`### ${s.title}`, "", s.body, "");
     });
+  } else {
+    lines.push("", "## Deep Summary", "", result.deepSummary, "");
   }
-  lines.push(
-    "## Deep Summary",
-    "",
-    result.deepSummary,
-    "",
-    "## Key Bullets",
-    "",
-    ...result.bullets.map((b) => `- ${b}`),
-    "",
-    "## Should I read the full source?",
-    "",
-    `**${result.verdict}**`,
-    "",
-    ...result.verdictReasons.map((r) => `- ${r}`),
-    "",
-    `*Source: ${result.sourcesUsed}*`
-  );
   if (result.founderTakeaways && result.founderTakeaways.length > 0) {
-    lines.push("", "## Founder takeaways", "");
-    result.founderTakeaways.forEach((t) => lines.push(`- ${t}`, ""));
+    lines.push("", "## Founder Takeaways & Real-World Applications", "");
+    result.founderTakeaways.forEach((t) => lines.push(t, ""));
   }
+  lines.push("", `*Source: ${result.sourcesUsed}*`);
   return lines.join("\n");
 }
 
@@ -91,6 +82,8 @@ export default function Home() {
   const [notionSaving, setNotionSaving] = useState(false);
   const [notionSavedUrl, setNotionSavedUrl] = useState<string | null>(null);
   const [notionSaveError, setNotionSaveError] = useState<string | null>(null);
+  /** Optional: e.g. "Focus on chapters 3–5" or "Break down the GTM section in more detail" */
+  const [customInstructions, setCustomInstructions] = useState("");
 
   const speakWithBrowser = useCallback(() => {
     if (!result) return;
@@ -161,6 +154,9 @@ export default function Home() {
     } else {
       setError("Please provide text, a file, a URL, or a podcast title.");
       return;
+    }
+    if (customInstructions.trim()) {
+      (body as Record<string, unknown>).customInstructions = customInstructions.trim();
     }
 
     setLoading(true);
@@ -251,9 +247,11 @@ export default function Home() {
           oneLiner: result.oneLiner,
           quickTake: result.quickTake,
           summary: result.deepSummary,
-          bullets: result.bullets,
+          deepSummarySections: result.deepSummarySections,
           founderTakeaways: result.founderTakeaways ?? [],
           keyIdeas: result.keyIdeas,
+          verdict: result.verdict,
+          verdictReasons: result.verdictReasons,
         }),
       });
       const data = await res.json();
@@ -316,6 +314,9 @@ export default function Home() {
       <header className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">DeepSummarizer</h1>
         <div className="flex gap-4">
+          <a href="/reno-times" className="text-sm font-medium text-emerald-400 hover:text-emerald-300">
+            Reno Times
+          </a>
           <a href="/clarify" className="text-sm text-zinc-400 hover:text-zinc-200">
             Clarify
           </a>
@@ -449,6 +450,20 @@ export default function Home() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-zinc-400 text-sm">Custom instructions (optional)</label>
+              <textarea
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                placeholder="e.g. Focus only on chapters 3–5 · Break down the GTM section in more detail · Tailor for an assignment on pricing"
+                rows={2}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 text-sm"
+              />
+              <p className="text-zinc-500 text-xs">
+                Use this for assignments, specific chapters, or themes. The summary will follow these on top of the usual format.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={summarize}
@@ -484,60 +499,54 @@ export default function Home() {
               </section>
             )}
 
-            {result.keyIdeas && result.keyIdeas.length > 0 && (
-              <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-                <h3 className="text-sm font-medium text-zinc-400 mb-3">Key ideas</h3>
-                <ul className="space-y-4">
-                  {result.keyIdeas.map((k, i) => (
-                    <li key={i} className="border-l-2 border-zinc-600 pl-3">
-                      <p className="text-zinc-100 font-medium text-sm mb-1">{k.title}</p>
-                      <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">{k.body}</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-              <h3 className="text-sm font-medium text-zinc-400 mb-2">Deep Summary</h3>
-              <div className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">
-                {result.deepSummary}
+            {/* FRONT: Should I read the full source? */}
+            <section className="rounded-lg border border-indigo-700/60 bg-indigo-900/20 p-4">
+              <h3 className="text-sm font-medium text-indigo-300 mb-2">
+                Should I read the full source?
+              </h3>
+              <p className="font-medium text-indigo-100 mb-2">{result.verdict}</p>
+              <div className="space-y-2 text-indigo-200 text-sm">
+                {result.verdictReasons.map((r, i) => (
+                  <p key={i}>{r}</p>
+                ))}
               </div>
             </section>
 
-            <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-              <h3 className="text-sm font-medium text-zinc-400 mb-2">Key Bullets</h3>
-              <ul className="list-disc list-inside space-y-1 text-zinc-200 text-sm">
-                {result.bullets.map((b, i) => (
-                  <li key={i}>{b}</li>
-                ))}
-              </ul>
-            </section>
+            {/* PAGE 1: Deep Summary (Blinkist-style sections) */}
+            {(result.deepSummarySections && result.deepSummarySections.length > 0) ? (
+              <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                <h3 className="text-sm font-medium text-zinc-300 mb-4">Deep Summary (Blinkist-style)</h3>
+                <div className="space-y-6">
+                  {result.deepSummarySections.map((s, i) => (
+                    <div key={i} className="border-l-2 border-zinc-600 pl-4">
+                      <h4 className="text-zinc-100 font-medium text-sm mb-2">{s.title}</h4>
+                      <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">{s.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                <h3 className="text-sm font-medium text-zinc-400 mb-2">Deep Summary</h3>
+                <div className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">
+                  {result.deepSummary}
+                </div>
+              </section>
+            )}
 
-            <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-              <h3 className="text-sm font-medium text-zinc-400 mb-2">
-                Should I read the full source?
-              </h3>
-              <p className="font-medium text-zinc-100 mb-2">{result.verdict}</p>
-              <ul className="list-disc list-inside space-y-1 text-zinc-300 text-sm">
-                {result.verdictReasons.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </section>
-
+            {/* PAGE 2: Founder Takeaways & Real-World Applications */}
             {result.founderTakeaways && result.founderTakeaways.length > 0 && (
               <section className="rounded-lg border border-emerald-700/60 bg-emerald-900/20 p-4">
                 <h3 className="text-sm font-medium text-emerald-300 mb-2">
-                  Founder / Rene Takeaways
+                  Founder Takeaways & Real-World Applications
                 </h3>
-                <ul className="list-disc list-inside space-y-2 text-emerald-100 text-sm">
+                <div className="space-y-3 text-emerald-100 text-sm">
                   {result.founderTakeaways.map((t, i) => (
-                    <li key={i} className="whitespace-pre-wrap">
+                    <p key={i} className="whitespace-pre-wrap">
                       {t}
-                    </li>
+                    </p>
                   ))}
-                </ul>
+                </div>
               </section>
             )}
 
@@ -579,7 +588,7 @@ export default function Home() {
                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl max-w-md w-full p-5 space-y-4">
                   <h3 className="text-lg font-semibold text-zinc-100">Save to Notion</h3>
                   <p className="text-zinc-500 text-sm">
-                    Saves summary, bullets, and founder takeaways. Area, topic tags, and content type are set automatically from the content.
+                    Saves one sentence, quick take, deep summary, key ideas, verdict, and founder takeaways. Area, topic tags, and content type are set automatically from the content.
                   </p>
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Title</label>

@@ -17,6 +17,9 @@ export async function POST(req: Request) {
       bullets?: string[];
       founderTakeaways?: string[];
       keyIdeas?: { title: string; body: string }[];
+      deepSummarySections?: { title: string; body: string }[];
+      verdict?: string;
+      verdictReasons?: string[];
       /** When set, append follow-up to this page instead of creating a new row. */
       appendToPageId?: string;
       appendAs?: "clarification" | "research";
@@ -24,6 +27,8 @@ export async function POST(req: Request) {
       appendQuestion?: string;
       appendAnswer?: string;
       appendBullets?: string[];
+      /** When appending to Reno Times front page, put the toggle under this section heading (e.g. "Crypto", "Public Markets"). */
+      appendSectionTitle?: string;
     };
 
     const appendToPageId = parseNotionPageId(body.appendToPageId ?? "");
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
         question: body.appendQuestion,
         answer: body.appendAnswer,
         bullets: Array.isArray(body.appendBullets) ? body.appendBullets : [],
+        sectionTitle: body.appendSectionTitle?.trim(),
       });
       return NextResponse.json({ pageId, url, appended: true });
     }
@@ -68,6 +74,13 @@ export async function POST(req: Request) {
       contentType = contentType || categorized.contentType;
     }
 
+    const verdict = (body.verdict ?? "").trim();
+    const verdictReasons = Array.isArray(body.verdictReasons) ? body.verdictReasons : [];
+
+    const deepSummarySections = Array.isArray(body.deepSummarySections)
+      ? body.deepSummarySections.filter((s) => s && (s.title || s.body))
+      : [];
+
     const { pageId, url } = await saveToNotion({
       title,
       area,
@@ -78,9 +91,11 @@ export async function POST(req: Request) {
       oneLiner: oneLiner || undefined,
       quickTake: quickTake || undefined,
       summary,
-      bullets,
       founderTakeaways,
       keyIdeas: keyIdeas.length > 0 ? keyIdeas : undefined,
+      deepSummarySections: deepSummarySections.length > 0 ? deepSummarySections : undefined,
+      verdict: verdict || undefined,
+      verdictReasons: verdictReasons.length > 0 ? verdictReasons : undefined,
     });
 
     return NextResponse.json({ pageId, url });

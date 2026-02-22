@@ -64,3 +64,11 @@ Next.js App Router fullstack app: summarize text, PDFs, URLs (YouTube, articles,
 ## History
 
 Past summaries are stored in `localStorage` under the key `deep-summarizer-history` (JSON array). Click an item in the History list to load that summary again.
+
+## Docs (setup and running)
+
+- **FULL_SETUP_INSTRUCTIONS.md** – Notion, env vars, Vercel, Reno Times (one-time setup).
+- **RUN_LOCALLY.md** – Run the app on your computer so full summaries and the daily newspaper work without Vercel Pro (step-by-step, simple language).
+- **VPS_SETUP.md** – Deploy to VPS so newspaper works from phone even when Mac is off (step-by-step, ~$5/month).
+- **COST_TRACKER.md** – Track all costs (VPS + OpenAI API) to decide if it's worth continuing.
+- **COMPLETE_LOCAL_FLOW.md** – Complete flow overview + automation options.

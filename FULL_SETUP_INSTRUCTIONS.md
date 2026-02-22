@@ -104,7 +104,7 @@ NOTION_NEWSPAPER_DATABASE_ID=your-reno-times-editions-database-id
 - **NOTION_DATABASE_ID** – Knowledge Bank database ID from Part 3.
 - **NOTION_NEWSPAPER_DATABASE_ID** – The Reno Times – Editions database ID from Part 3.
 
-Optional for daily briefing: add `CRON_SECRET=...` for the cron URL (see Part 7). Optional for front page: add `NOTION_RENO_TIMES_FRONT_PAGE_ID=your-notion-page-id` (the page that should show today’s newsletter; see RENO_TIMES_UI_AND_FRONT_PAGE.md).
+Optional for daily briefing: add `CRON_SECRET=...` for the cron URL (see Part 7). Optional for front page: add `NOTION_RENO_TIMES_FRONT_PAGE_ID=your-notion-page-id` (the page that should show today’s newsletter). Each time the newspaper runs, that page is filled with a **two-column layout**: main newsletter on the left, and a small **“View all editions”** link on the right (automatic; no setup in Notion).
 
 ---
 
@@ -164,14 +164,14 @@ When this works, **https://github.com/Renenicolas/deep-summarizer** will show yo
 
 # Part 6: How The Reno Times works (front page + archive)
 
-- **"The Reno Times" page** = your front page. Add a **linked database** view of "The Reno Times – Editions", filter to **Date = Today** (or sort by Date descending). Add a link **"View all editions"** that opens the full Editions database.
-- **Every time the daily briefing runs** (e.g. early morning):
+- **"The Reno Times" page** = your front page. When you set `NOTION_RENO_TIMES_FRONT_PAGE_ID`, the app **writes today’s newsletter** to that page each time the briefing runs. The page is shown in **two columns**: main content on the left, and a small **“View all editions”** link on the right (so you can open the full Editions database). You don’t add that link by hand—the app does it every time.
+- **Every time the daily briefing runs** (e.g. when you open the URL or a cron hits it):
   1. The app fetches news from the configured sources (RSS, etc.).
-  2. It builds today’s edition (TL;DR style, sections: Crypto, Public Markets, Startups, Healthcare, Politics/global, Conclusions, etc.).
-  3. It **creates a new row** in **The Reno Times – Editions** with title like **The Reno Times – Tuesday, Feb 18, 2026** and the full content in the page body.
-  4. **All editions stay in the Editions database** (nothing is moved). Your front page view shows only today's because it's filtered to today.
+  2. It builds today’s edition (TL;DR style, sections with “So what” at the end of each, etc.).
+  3. It **creates a new row** in **The Reno Times – Editions** and fills the **front page** with the same content in the two-column layout.
+  4. **All editions stay in the Editions database.** The front page always shows the latest run’s content.
 
-Result: **"The Reno Times"** page = today's edition only. **"The Reno Times – Editions"** database = full archive (click "View all editions").
+**Running on your computer (no Vercel Pro):** The briefing takes 1–2 minutes. On Vercel’s free plan it will time out. To get full summaries and the newspaper without paying, **run the app locally** and open the daily-briefing URL from your browser. See **RUN_LOCALLY.md** for step-by-step instructions.
 
 ---
 

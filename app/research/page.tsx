@@ -90,6 +90,9 @@ export default function ResearchPage() {
       <header className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Research</h1>
         <div className="flex gap-4">
+          <Link href="/reno-times" className="text-sm font-medium text-emerald-400 hover:text-emerald-300">
+            Reno Times
+          </Link>
           <Link href="/" className="text-sm text-zinc-400 hover:text-zinc-200">
             Summarizer
           </Link>

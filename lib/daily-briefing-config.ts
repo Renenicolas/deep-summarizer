@@ -5,6 +5,7 @@
  */
 
 export type SectionId =
+  | "major_news"
   | "crypto"
   | "public_markets"
   | "startups"
@@ -25,6 +26,12 @@ export type SectionConfig = {
 };
 
 export const RENO_TIMES_SECTIONS: SectionConfig[] = [
+  {
+    id: "major_news",
+    title: "Major / Big news (reports, launches, one-off events)",
+    optional: true,
+    // No feed; LLM fills only when something big (Bain report, McKinsey, major launch, etc.)
+  },
   { id: "crypto", title: "Crypto", feedUrl: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
   {
     id: "public_markets",

@@ -1,14 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type ClarifyResult = {
   answer: string;
   bullets: string[];
 };
 
-export default function ClarifyPage() {
+/** Section titles that appear in The Reno Times (must match heading_2 in Notion so the toggle is placed under the right section). */
+const RENO_TIMES_SECTION_TITLES = [
+  "Major / Big news (reports, launches, one-off events)",
+  "Crypto",
+  "Public Markets",
+  "Startups / VC",
+  "Healthcare (Kinnect / DSOs / Practices)",
+  "Kinnect Scout (Competitors, threats, moves to watch)",
+  "Tools & AI (new workflows, marketing, ops upgrades)",
+  "Politics & Global (market impact)",
+  "Foreign Markets",
+  "Conclusions / So what?",
+];
+
+function ClarifyContent() {
+  const searchParams = useSearchParams();
+  const appendToFromUrl = searchParams.get("appendTo") ?? "";
+  const isRenoTimesEmbed = Boolean(appendToFromUrl.trim());
+
   const [snippet, setSnippet] = useState("");
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,6 +36,13 @@ export default function ClarifyPage() {
   const [notionSaving, setNotionSaving] = useState(false);
   const [notionSavedUrl, setNotionSavedUrl] = useState<string | null>(null);
   const [appendToPage, setAppendToPage] = useState("");
+  const [sectionTitle, setSectionTitle] = useState("");
+
+  useEffect(() => {
+    if (appendToFromUrl.trim()) {
+      setAppendToPage(appendToFromUrl.trim());
+    }
+  }, [appendToFromUrl]);
 
   const runClarify = async () => {
     if (!snippet.trim()) return;
@@ -45,7 +71,7 @@ export default function ClarifyPage() {
 
   const saveToNotion = async () => {
     if (!result) return;
-    const addToExisting = appendToPage.trim();
+    const addToExisting = appendToPage.trim() || (appendToFromUrl ? appendToFromUrl.trim() : "");
     setNotionSaving(true);
     setError(null);
     try {
@@ -60,6 +86,7 @@ export default function ClarifyPage() {
             appendQuestion: question.trim() || undefined,
             appendAnswer: result.answer,
             appendBullets: result.bullets,
+            appendSectionTitle: sectionTitle.trim() || undefined,
           }),
         });
         const data = await res.json();
@@ -98,6 +125,9 @@ export default function ClarifyPage() {
       <header className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Clarify</h1>
         <div className="flex gap-4">
+          <Link href="/reno-times" className="text-sm font-medium text-emerald-400 hover:text-emerald-300">
+            Reno Times
+          </Link>
           <Link href="/" className="text-sm text-zinc-400 hover:text-zinc-200">
             Summarizer
           </Link>
@@ -111,43 +141,71 @@ export default function ClarifyPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        <p className="text-zinc-400 text-sm">
-          Paste a sentence or paragraph from The Reno Times or any saved summary. Get a short explanation and how it affects Kinnect, markets, and you. Save as a new row in Knowledge Bank, or add to an existing page so follow-ups stay on that row.
-        </p>
-
-        <div className="space-y-2">
-          <label className="block text-zinc-400 text-sm">Paste the text you want clarified</label>
-          <textarea
-            value={snippet}
-            onChange={(e) => setSnippet(e.target.value)}
-            placeholder="e.g. a line from The Reno Times: 'ETF net inflows turned positive; SEC delayed decision on...'"
-            rows={3}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-zinc-400 text-sm">What do you want to know? (optional)</label>
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="e.g. How does this affect Kinnect? What does this mean for rates?"
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-          />
-          <p className="text-zinc-500 text-xs">
-            Leave blank for: what it means and how it could affect you, Kinnect, and markets.
+        <div className={isRenoTimesEmbed ? "sticky top-0 z-10 bg-zinc-950 pb-4 border-b border-zinc-800 -mx-4 px-4 pt-2" : ""}>
+          <p className="text-zinc-400 text-sm">
+            <strong>Go deeper on any news or summary.</strong> Paste a sentence or paragraph from The Reno Times or any saved summary. Get an explanation tailored to you: what it means, how it affects Kinnect, markets, and what you should do. Save as a new row in Knowledge Bank, or add to an existing page so follow-ups stay on that row.
           </p>
-        </div>
 
-        <button
-          type="button"
-          onClick={runClarify}
-          disabled={loading || !snippet.trim()}
-          className="px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium"
-        >
-          {loading ? "Getting clarification…" : "Get clarification"}
-        </button>
+          <div className="space-y-2 mt-4">
+            <label className="block text-zinc-400 text-sm">Paste the text you want clarified</label>
+            <textarea
+              value={snippet}
+              onChange={(e) => setSnippet(e.target.value)}
+              placeholder="e.g. a line from The Reno Times: 'ETF net inflows turned positive; SEC delayed decision on...'"
+              rows={isRenoTimesEmbed ? 2 : 3}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2 mt-4">
+            <label className="block text-zinc-400 text-sm">What do you want to know? (optional)</label>
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="e.g. How does this affect Kinnect? What does this mean for rates?"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+            />
+            <p className="text-zinc-500 text-xs">
+              Leave blank for: what it means and how it could affect you, Kinnect, and markets.
+            </p>
+            <button
+              type="button"
+              onClick={() => setQuestion("How does this affect me, Kinnect, and what should I do?")}
+              className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+            >
+              Use: &quot;How does this affect me, Kinnect, and what should I do?&quot;
+            </button>
+          </div>
+
+          {isRenoTimesEmbed && (
+            <div className="space-y-2 mt-4">
+              <label className="block text-zinc-400 text-sm">Place this clarification under which section?</label>
+              <select
+                value={sectionTitle}
+                onChange={(e) => setSectionTitle(e.target.value)}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                <option value="">End of newspaper</option>
+                {RENO_TIMES_SECTION_TITLES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <p className="text-zinc-500 text-xs">
+                The toggle will appear under that section so you can read it right there.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={runClarify}
+            disabled={loading || !snippet.trim()}
+            className="mt-4 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium"
+          >
+            {loading ? "Getting clarification…" : "Get clarification"}
+          </button>
+        </div>
 
         {error && (
           <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-amber-200 text-sm">
@@ -173,17 +231,27 @@ export default function ClarifyPage() {
             )}
             <div className="space-y-3">
               <div className="space-y-1">
+                {appendToFromUrl.trim() ? (
+                <p className="text-emerald-400/90 text-sm">
+                  {sectionTitle.trim()
+                    ? `Will be added under the "${sectionTitle}" section as a toggle.`
+                    : "Clarifications will be added to today's Reno Times (under a toggle on that page)."}
+                </p>
+              ) : (
+                <>
                 <label className="block text-zinc-400 text-xs">Add to existing page (optional)</label>
                 <input
                   type="text"
                   value={appendToPage}
                   onChange={(e) => setAppendToPage(e.target.value)}
-                  placeholder="Paste Notion page URL or ID to add this clarification to that row"
+                  placeholder="Paste this Reno Times page's URL to add the answer to that edition"
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-100 text-sm placeholder-zinc-500"
                 />
                 <p className="text-zinc-500 text-xs">
-                  Leave blank to create a new row in Knowledge Bank. Paste a Reno Times or summary page link to add this clarification there instead (no extra row).
+                  Reading The Reno Times? Paste this page’s URL above to attach the clarification to that edition (no extra row). Leave blank to create a new row in Knowledge Bank.
                 </p>
+                </>
+              )}
               </div>
               <div className="flex gap-3">
                 <button
@@ -192,7 +260,7 @@ export default function ClarifyPage() {
                   disabled={notionSaving}
                   className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-medium"
                 >
-                  {notionSaving ? "Saving…" : appendToPage.trim() ? "Add to page" : "Save to Notion"}
+                  {notionSaving ? "Saving…" : (appendToPage.trim() || appendToFromUrl.trim()) ? "Add to page" : "Save to Notion"}
                 </button>
                 {notionSavedUrl && (
                   <a
@@ -210,5 +278,13 @@ export default function ClarifyPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ClarifyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">Loading…</div>}>
+      <ClarifyContent />
+    </Suspense>
   );
 }

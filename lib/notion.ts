@@ -53,9 +53,12 @@ export async function saveToNotion(params: {
   oneLiner?: string;
   quickTake?: string;
   summary: string;
-  bullets: string[];
+  bullets?: string[];
   founderTakeaways: string[];
   keyIdeas?: { title: string; body: string }[];
+  deepSummarySections?: { title: string; body: string }[];
+  verdict?: string;
+  verdictReasons?: string[];
 }): Promise<{ pageId: string; url: string }> {
   const apiKey = process.env.NOTION_API_KEY;
   const databaseId = process.env.NOTION_DATABASE_ID;
@@ -79,26 +82,36 @@ export async function saveToNotion(params: {
   if (params.quickTake) {
     children.push(heading2Block("Quick take"), ...params.quickTake.split(/\n\n+/).filter(Boolean).map((p) => paragraphBlock(p)));
   }
-  if (params.keyIdeas && params.keyIdeas.length > 0) {
-    children.push(heading2Block("Key ideas"));
-    params.keyIdeas.forEach((k) => {
-      children.push(heading3Block(k.title), paragraphBlock(k.body));
-    });
+
+  // FRONT: Should I read the full source?
+  if (params.verdict) {
+    children.push(heading2Block("Should you read or listen to the full source?"));
+    children.push(paragraphBlock(params.verdict));
+    if (params.verdictReasons && params.verdictReasons.length > 0) {
+      params.verdictReasons.forEach((r) => children.push(paragraphBlock(r)));
+    }
   }
 
-  children.push(
-    heading2Block("Summary"),
-    ...params.summary
-      .split(/\n\n+/)
-      .filter(Boolean)
-      .map((p) => paragraphBlock(p)),
-    heading2Block("Key bullets"),
-    ...params.bullets.map((b) => bulletedListItemBlock(b))
-  );
+  // PAGE 1: Deep Summary (Blinkist-style sections)
+  if (params.deepSummarySections && params.deepSummarySections.length > 0) {
+    children.push(heading2Block("Deep Summary (Blinkist-style)"));
+    params.deepSummarySections.forEach((s) => {
+      children.push(heading3Block(s.title), paragraphBlock(s.body));
+    });
+  } else {
+    children.push(heading2Block("Deep Summary"));
+    const summaryParas = params.summary.split(/\n\n+/).filter(Boolean);
+    if (summaryParas.length > 0) {
+      summaryParas.forEach((p) => children.push(paragraphBlock(p)));
+    } else {
+      children.push(paragraphBlock(params.summary || "(No summary.)"));
+    }
+  }
 
+  // PAGE 2: Founder Takeaways & Real-World Applications
   if (params.founderTakeaways.length > 0) {
-    children.push(heading2Block("Founder / Rene takeaways"));
-    params.founderTakeaways.forEach((t) => children.push(bulletedListItemBlock(t)));
+    children.push(heading2Block("Founder Takeaways & Real-World Applications"));
+    params.founderTakeaways.forEach((t) => children.push(paragraphBlock(t)));
   }
 
   const properties: Record<string, unknown> = {
@@ -148,9 +161,86 @@ export function parseNotionPageId(input: string): string | null {
   return null;
 }
 
+function toggleBlock(title: string, children: object[]) {
+  return {
+    object: "block" as const,
+    type: "toggle" as const,
+    toggle: {
+      rich_text: [{ type: "text" as const, text: { content: title.slice(0, 2000) } }],
+      color: "default" as const,
+      children: children as any,
+    },
+  };
+}
+
+/** Get plain text from a Notion rich_text array. */
+function getBlockPlainText(block: any): string {
+  const rt = block?.heading_2?.rich_text ?? block?.heading_1?.rich_text ?? block?.paragraph?.rich_text ?? [];
+  return (Array.isArray(rt) ? rt : [])
+    .map((r: any) => r?.plain_text ?? "")
+    .join("")
+    .trim();
+}
+
 /**
- * Append a "Follow-up" section (clarification or research) to an existing Notion page.
- * Use this so follow-ups stay on the same row instead of creating new ones.
+ * Find a heading_2 block on the page whose text contains or equals sectionTitle.
+ * Returns the block id or null.
+ */
+async function findSectionHeadingBlockId(
+  notion: Client,
+  pageId: string,
+  sectionTitle: string
+): Promise<string | null> {
+  const normalized = sectionTitle.trim().toLowerCase();
+  if (!normalized) return null;
+  let cursor: string | undefined;
+  do {
+    const list = (await notion.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+      start_cursor: cursor,
+    })) as { results?: any[]; next_cursor?: string };
+    const blocks = list.results ?? [];
+    for (const block of blocks) {
+      if (block.type === "heading_2") {
+        const text = getBlockPlainText(block).toLowerCase();
+        if (text === normalized || text.includes(normalized) || normalized.includes(text)) {
+          return block.id;
+        }
+      }
+      if (block.type === "column_list" && block.id) {
+        const colList = (await notion.blocks.children.list({
+          block_id: block.id,
+          page_size: 10,
+        })) as { results?: any[] };
+        const cols = colList.results ?? [];
+        for (const col of cols) {
+          if (col.type === "column" && col.id) {
+            const childList = (await notion.blocks.children.list({
+              block_id: col.id,
+              page_size: 100,
+            })) as { results?: any[] };
+            const childBlocks = childList.results ?? [];
+            for (const b of childBlocks) {
+              if (b.type === "heading_2") {
+                const text = getBlockPlainText(b).toLowerCase();
+                if (text === normalized || text.includes(normalized) || normalized.includes(text)) {
+                  return b.id;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    cursor = list.next_cursor ?? undefined;
+  } while (cursor);
+  return null;
+}
+
+/**
+ * Append a "Follow-up" section (clarification or research) to an existing Notion page as a toggle.
+ * If sectionTitle is provided and the page has a heading_2 matching it, the toggle is added as a child of that section (so it appears under that section). Otherwise appended to the page.
  */
 export async function appendFollowUpToPage(params: {
   pageId: string;
@@ -159,6 +249,7 @@ export async function appendFollowUpToPage(params: {
   question?: string;
   answer: string;
   bullets: string[];
+  sectionTitle?: string;
 }): Promise<{ pageId: string; url: string }> {
   const apiKey = process.env.NOTION_API_KEY;
   if (!apiKey) throw new Error("NOTION_API_KEY must be set in .env.local");
@@ -166,24 +257,43 @@ export async function appendFollowUpToPage(params: {
   const notion = new Client({ auth: apiKey });
   const pageId = params.pageId.replace(/-/g, "");
 
-  const children: object[] = [];
-  const headingTitle = params.type === "clarification" ? "Follow-up clarification" : "Follow-up research";
+  const label = params.type === "clarification" ? "Clarification" : "Research";
+  const titlePreview = params.snippet
+    ? params.snippet.slice(0, 80).replace(/\n/g, " ") + (params.snippet.length > 80 ? "…" : "")
+    : params.question
+      ? params.question.slice(0, 80) + (params.question.length > 80 ? "…" : "")
+      : label;
 
-  children.push(heading2Block(headingTitle));
+  const innerChildren: object[] = [];
   if (params.snippet) {
-    children.push(paragraphBlock("Snippet: " + params.snippet.slice(0, 1500)));
+    innerChildren.push(paragraphBlock("Snippet: " + params.snippet.slice(0, 1500)));
   }
   if (params.question) {
-    children.push(paragraphBlock("Question: " + params.question));
+    innerChildren.push(paragraphBlock("Question: " + params.question));
   }
-  children.push(paragraphBlock(params.answer));
+  innerChildren.push(paragraphBlock(params.answer));
   if (params.bullets.length > 0) {
-    params.bullets.forEach((b) => children.push(bulletedListItemBlock(b)));
+    params.bullets.forEach((b) => innerChildren.push(bulletedListItemBlock(b)));
+  }
+
+  const toggle = toggleBlock(`${label}: ${titlePreview}`, innerChildren);
+
+  const sectionTitle = (params.sectionTitle ?? "").trim();
+  if (sectionTitle) {
+    const sectionBlockId = await findSectionHeadingBlockId(notion, pageId, sectionTitle);
+    if (sectionBlockId) {
+      await notion.blocks.children.append({
+        block_id: sectionBlockId,
+        children: [toggle] as any,
+      });
+      const url = `https://notion.so/${pageId}`;
+      return { pageId, url };
+    }
   }
 
   await notion.blocks.children.append({
     block_id: pageId,
-    children: children as any,
+    children: [toggle] as any,
   });
 
   const url = `https://notion.so/${pageId}`;

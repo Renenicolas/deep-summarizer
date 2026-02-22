@@ -17,7 +17,7 @@ function jsonResponse(data: object, status: number) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { type, text, url, fileBase64, fileName, mimeType, title } = body as {
+    const { type, text, url, fileBase64, fileName, mimeType, title, customInstructions } = body as {
       type?: string;
       text?: string;
       url?: string;
@@ -25,6 +25,8 @@ export async function POST(req: Request) {
       fileName?: string;
       mimeType?: string;
       title?: string;
+      /** Optional: e.g. "Focus on chapters 3–5" or "Break down the GTM section in more detail" */
+      customInstructions?: string;
     };
 
     if (!type) {
@@ -68,13 +70,18 @@ export async function POST(req: Request) {
 
     const { result: summary, usage } = await summarizeWithLLM(
       extractResult.text,
-      extractResult.source
+      extractResult.source,
+      (customInstructions ?? "").trim() || undefined
     );
 
     recordSummarizeUsage(usage.inputTokens, usage.outputTokens);
 
     return NextResponse.json({
+      oneLiner: summary.oneLiner,
+      quickTake: summary.quickTake,
       deepSummary: summary.deepSummary,
+      deepSummarySections: summary.deepSummarySections,
+      keyIdeas: summary.keyIdeas,
       bullets: summary.bullets,
       verdict: summary.verdict,
       verdictReasons: summary.verdictReasons,

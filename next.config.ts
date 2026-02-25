@@ -8,6 +8,19 @@ const nextConfig: NextConfig = {
     "127.0.0.1",
     "127.0.0.1:3000",
   ],
+  // Let Notion embed our app (Summarizer, Clarify, Reno Times) so links work with HTTPS
+  async headers() {
+    const allowNotionEmbed = {
+      key: "Content-Security-Policy",
+      value: "frame-ancestors https://www.notion.so https://notion.so https://*.notion.so;",
+    };
+    return [
+      { source: "/", headers: [allowNotionEmbed] },
+      { source: "/clarify", headers: [allowNotionEmbed] },
+      { source: "/reno-times", headers: [allowNotionEmbed] },
+      { source: "/research", headers: [allowNotionEmbed] },
+    ];
+  },
 };
 
 export default nextConfig;

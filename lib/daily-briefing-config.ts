@@ -13,8 +13,7 @@ export type SectionId =
   | "kinnect_scout"
   | "tools_ai"
   | "politics_global"
-  | "foreign_markets"
-  | "conclusions";
+  | "foreign_markets";
 
 export type SectionConfig = {
   id: SectionId;
@@ -82,7 +81,6 @@ export const RENO_TIMES_SECTIONS: SectionConfig[] = [
     ],
   },
   { id: "foreign_markets", title: "Foreign Markets", optional: true },
-  { id: "conclusions", title: "Conclusions / So what?", optional: false },
 ];
 
 /** Notion database ID for "The Reno Times – Editions" (one row per day). Set in .env as NOTION_NEWSPAPER_DATABASE_ID when you're ready. */

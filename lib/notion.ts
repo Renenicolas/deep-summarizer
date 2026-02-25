@@ -300,6 +300,64 @@ export async function appendFollowUpToPage(params: {
   return { pageId, url };
 }
 
+/** Find the page ID of today's edition in The Reno Times – Editions database (by Date property). Returns null if none. */
+export async function findTodayEditionPageId(dateStr: string): Promise<string | null> {
+  const apiKey = process.env.NOTION_API_KEY;
+  const databaseId = process.env.NOTION_NEWSPAPER_DATABASE_ID;
+  if (!apiKey || !databaseId) return null;
+
+  const notion = new Client({ auth: apiKey });
+  const id = databaseId.replace(/-/g, "");
+  try {
+    const response = (await notion.dataSources.query({
+      data_source_id: id,
+      page_size: 1,
+      result_type: "page",
+      filter: { property: "Date", date: { equals: dateStr } } as any,
+    })) as { results?: { id?: string }[] };
+    const first = response.results?.[0];
+    return first?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear a page's blocks and append the given children (used to replace an edition's content). */
+export async function updateRenoTimesEditionPage(pageId: string, children: object[]): Promise<void> {
+  const apiKey = process.env.NOTION_API_KEY;
+  if (!apiKey) return;
+
+  const notion = new Client({ auth: apiKey });
+  const pid = pageId.replace(/-/g, "");
+
+  let cursor: string | undefined;
+  do {
+    const list = (await notion.blocks.children.list({
+      block_id: pid,
+      page_size: 100,
+      start_cursor: cursor,
+    })) as { results?: { id: string }[]; next_cursor?: string };
+    const blocks = list.results ?? [];
+    for (const block of blocks) {
+      try {
+        await notion.blocks.delete({ block_id: block.id });
+      } catch {
+        // ignore
+      }
+    }
+    cursor = list.next_cursor ?? undefined;
+  } while (cursor);
+
+  const chunkSize = 100;
+  for (let i = 0; i < children.length; i += chunkSize) {
+    const chunk = children.slice(i, i + chunkSize);
+    await notion.blocks.children.append({
+      block_id: pid,
+      children: chunk as any,
+    });
+  }
+}
+
 /** Create a new edition in The Reno Times – Editions database. */
 export async function createRenoTimesEdition(params: {
   title: string;
@@ -338,6 +396,23 @@ export async function createRenoTimesEdition(params: {
   const pageId = (response as { id: string }).id;
   const url = (response as { url?: string }).url ?? `https://notion.so/${pageId.replace(/-/g, "")}`;
   return { pageId, url };
+}
+
+/** Replace today's edition: update existing row for that date or create a new one. Returns pageId and url. */
+export async function upsertRenoTimesEdition(params: {
+  title: string;
+  date: string;
+  children: object[];
+}): Promise<{ pageId: string; url: string }> {
+  const existingId = await findTodayEditionPageId(params.date);
+  if (existingId) {
+    await updateRenoTimesEditionPage(existingId, params.children);
+    return {
+      pageId: existingId,
+      url: `https://notion.so/${existingId.replace(/-/g, "")}`,
+    };
+  }
+  return createRenoTimesEdition(params);
 }
 
 /** Update the Reno Times "front page" so it shows today's newsletter content. Clears the page and appends the given blocks. Set NOTION_RENO_TIMES_FRONT_PAGE_ID in env. */

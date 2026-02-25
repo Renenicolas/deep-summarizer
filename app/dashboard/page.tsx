@@ -7,7 +7,10 @@ type UsageStats = {
   totalCostUsd: number;
   totalSummarizeCost: number;
   totalTtsCost: number;
-  byDay: { date: string; costUsd: number; summarize: number; tts: number }[];
+  totalDailyBriefingCost: number;
+  totalClarifyCost: number;
+  totalResearchCost: number;
+  byDay: { date: string; costUsd: number; summarize: number; tts: number; daily_briefing: number; clarify: number; research: number }[];
   recent: {
     id: string;
     timestamp: number;
@@ -93,6 +96,24 @@ export default function DashboardPage() {
               ${stats.totalTtsCost.toFixed(4)}
             </p>
           </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+            <p className="text-zinc-500 text-sm mb-1">Reno Times</p>
+            <p className="text-2xl font-semibold text-blue-400">
+              ${(stats.totalDailyBriefingCost ?? 0).toFixed(4)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+            <p className="text-zinc-500 text-sm mb-1">Clarify</p>
+            <p className="text-2xl font-semibold text-indigo-400">
+              ${(stats.totalClarifyCost ?? 0).toFixed(4)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+            <p className="text-zinc-500 text-sm mb-1">Research</p>
+            <p className="text-2xl font-semibold text-violet-400">
+              ${(stats.totalResearchCost ?? 0).toFixed(4)}
+            </p>
+          </div>
         </section>
 
         {stats.byDay.length > 0 && (
@@ -106,6 +127,9 @@ export default function DashboardPage() {
                     <th className="p-3">Total</th>
                     <th className="p-3">Summarize</th>
                     <th className="p-3">TTS</th>
+                    <th className="p-3">Reno Times</th>
+                    <th className="p-3">Clarify</th>
+                    <th className="p-3">Research</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -113,8 +137,11 @@ export default function DashboardPage() {
                     <tr key={row.date} className="border-b border-zinc-800/50">
                       <td className="p-3 text-zinc-300">{row.date}</td>
                       <td className="p-3 font-medium">${row.costUsd.toFixed(4)}</td>
-                      <td className="p-3 text-emerald-400/90">${row.summarize.toFixed(4)}</td>
-                      <td className="p-3 text-amber-400/90">${row.tts.toFixed(4)}</td>
+                      <td className="p-3 text-emerald-400/90">${(row.summarize ?? 0).toFixed(4)}</td>
+                      <td className="p-3 text-amber-400/90">${(row.tts ?? 0).toFixed(4)}</td>
+                      <td className="p-3 text-blue-400/90">${(row.daily_briefing ?? 0).toFixed(4)}</td>
+                      <td className="p-3 text-indigo-400/90">${(row.clarify ?? 0).toFixed(4)}</td>
+                      <td className="p-3 text-violet-400/90">${(row.research ?? 0).toFixed(4)}</td>
                     </tr>
                   ))}
                 </tbody>

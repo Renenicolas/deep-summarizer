@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
-    "lint": "eslint"
+    "lint": "eslint",
+    "reno-times:preview": "node scripts/reno-times-preview.mjs"
   },
   "dependencies": {
     "@notionhq/client": "^5.9.0",

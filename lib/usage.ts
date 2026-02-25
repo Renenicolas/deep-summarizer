@@ -7,7 +7,7 @@ const USAGE_FILE = join(DATA_DIR, "usage.json");
 export type UsageEntry = {
   id: string;
   timestamp: number;
-  endpoint: "summarize" | "tts";
+  endpoint: "summarize" | "tts" | "daily_briefing" | "clarify" | "research";
   inputTokens?: number;
   outputTokens?: number;
   ttsCharacters?: number;
@@ -78,11 +78,40 @@ export function recordTtsUsage(characterCount: number): number {
   return costUsd;
 }
 
+/** Record LLM usage for daily_briefing, clarify, or research (gpt-4o-mini). */
+export function recordLlmUsage(
+  inputTokens: number,
+  outputTokens: number,
+  endpoint: "daily_briefing" | "clarify" | "research"
+): number {
+  const costUsd =
+    (inputTokens / 1_000_000) * PRICES["gpt-4o-mini"].inputPer1M +
+    (outputTokens / 1_000_000) * PRICES["gpt-4o-mini"].outputPer1M;
+  const entry: UsageEntry = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    endpoint,
+    inputTokens,
+    outputTokens,
+    costUsd,
+  };
+  loadStore()
+    .then((store) => {
+      store.entries.push(entry);
+      return saveStore(store);
+    })
+    .catch(() => {});
+  return costUsd;
+}
+
 export async function getUsageStats(): Promise<{
   totalCostUsd: number;
   totalSummarizeCost: number;
   totalTtsCost: number;
-  byDay: { date: string; costUsd: number; summarize: number; tts: number }[];
+  totalDailyBriefingCost: number;
+  totalClarifyCost: number;
+  totalResearchCost: number;
+  byDay: { date: string; costUsd: number; summarize: number; tts: number; daily_briefing: number; clarify: number; research: number }[];
   recent: UsageEntry[];
 }> {
   const store = await loadStore();
@@ -95,10 +124,19 @@ export async function getUsageStats(): Promise<{
   const totalTtsCost = entries
     .filter((e) => e.endpoint === "tts")
     .reduce((s, e) => s + e.costUsd, 0);
+  const totalDailyBriefingCost = entries
+    .filter((e) => e.endpoint === "daily_briefing")
+    .reduce((s, e) => s + e.costUsd, 0);
+  const totalClarifyCost = entries
+    .filter((e) => e.endpoint === "clarify")
+    .reduce((s, e) => s + e.costUsd, 0);
+  const totalResearchCost = entries
+    .filter((e) => e.endpoint === "research")
+    .reduce((s, e) => s + e.costUsd, 0);
 
   const byDayMap = new Map<
     string,
-    { costUsd: number; summarize: number; tts: number }
+    { costUsd: number; summarize: number; tts: number; daily_briefing: number; clarify: number; research: number }
   >();
   for (const e of entries) {
     const date = new Date(e.timestamp).toISOString().slice(0, 10);
@@ -106,10 +144,16 @@ export async function getUsageStats(): Promise<{
       costUsd: 0,
       summarize: 0,
       tts: 0,
+      daily_briefing: 0,
+      clarify: 0,
+      research: 0,
     };
     cur.costUsd += e.costUsd;
     if (e.endpoint === "summarize") cur.summarize += e.costUsd;
-    else cur.tts += e.costUsd;
+    else if (e.endpoint === "tts") cur.tts += e.costUsd;
+    else if (e.endpoint === "daily_briefing") cur.daily_briefing += e.costUsd;
+    else if (e.endpoint === "clarify") cur.clarify += e.costUsd;
+    else if (e.endpoint === "research") cur.research += e.costUsd;
     byDayMap.set(date, cur);
   }
   const byDay = Array.from(byDayMap.entries())
@@ -123,6 +167,9 @@ export async function getUsageStats(): Promise<{
     totalCostUsd,
     totalSummarizeCost,
     totalTtsCost,
+    totalDailyBriefingCost,
+    totalClarifyCost,
+    totalResearchCost,
     byDay,
     recent,
   };

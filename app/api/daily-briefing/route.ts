@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import {
-  createRenoTimesEdition,
   updateRenoTimesFrontPage,
+  upsertRenoTimesEdition,
 } from "@/lib/notion";
 import {
   buildEditionSections,
   editionTitle,
   type SectionContent,
 } from "@/lib/daily-briefing";
+import { recordLlmUsage } from "@/lib/usage";
 
 /** Allow up to 5 minutes so RSS + LLM can finish (Vercel Pro supports 300s; Hobby may cap at 10s – if you get no response, upgrade or run locally). */
 export const maxDuration = 300;
@@ -68,19 +69,19 @@ function sectionToBlocks(section: SectionContent): object[] {
   const tldr = typeof section.tldr === "string" ? section.tldr : "";
   blocks.push(heading2(title));
   blocks.push(paragraph(tldr));
-  
+
   const bullets = Array.isArray(section.bullets) ? section.bullets : [];
   const soWhatIndex = bullets.findIndex((b) => typeof b === "string" && (b.toLowerCase().includes("so what") || b.toLowerCase().includes("actionables")));
   const contentBullets = soWhatIndex >= 0 ? bullets.slice(0, soWhatIndex) : bullets;
   const soWhatBullets = soWhatIndex >= 0 ? bullets.slice(soWhatIndex) : [];
-  
+
   // Content: paragraphs (thoughtful but concise, like Finimize/Morning Brew).
   for (const b of contentBullets) {
     const str = typeof b === "string" ? b : String(b ?? "");
     if (str.trim()) blocks.push(paragraph(str));
   }
-  
-  // "So what / Actionables": bullets.
+
+  // "So what / Actionables": heading + bullets at the end of each section.
   if (soWhatBullets.length > 0) {
     blocks.push(heading3("So what for you / Actionables"));
     for (const b of soWhatBullets) {
@@ -116,14 +117,15 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         error: "Unauthorized",
-        hint: "The secret in the URL must exactly match CRON_SECRET in .env.local. If you just changed .env.local, restart the app (Ctrl+C, then npm run dev).",
+        hint: "The secret in the URL must exactly match CRON_SECRET. Locally: .env.local then restart (Ctrl+C, npm run dev). On VPS: .env then pm2 restart reno-times.",
       },
       { status: 401 }
     );
   }
 
+  const isPreview = searchParams.get("preview") === "1";
   const newspaperId = process.env.NOTION_NEWSPAPER_DATABASE_ID;
-  if (!newspaperId) {
+  if (!isPreview && !newspaperId) {
     return NextResponse.json(
       {
         error:
@@ -138,7 +140,33 @@ export async function GET(req: Request) {
     const dateStr = now.toISOString().slice(0, 10);
     const title = editionTitle(now);
 
-    const sections = await buildEditionSections();
+    const { sections, inputTokens, outputTokens } = await buildEditionSections();
+
+    if (isPreview) {
+      return NextResponse.json({
+        preview: true,
+        title,
+        date: dateStr,
+        editionDateLabel: now.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+        sections: sections.map((s) => ({
+          id: s.id,
+          title: s.title,
+          tldr: s.tldr,
+          bullets: s.bullets ?? [],
+          sources: s.sources ?? [],
+        })),
+      });
+    }
+
+    if (!isPreview && (inputTokens > 0 || outputTokens > 0)) {
+      recordLlmUsage(inputTokens, outputTokens, "daily_briefing");
+    }
+
     const newspaperDbId = process.env.NOTION_NEWSPAPER_DATABASE_ID ?? "";
     const editionsUrl = newspaperDbId
       ? `https://www.notion.so/${newspaperDbId.replace(/-/g, "")}`
@@ -147,59 +175,40 @@ export async function GET(req: Request) {
     const runNowUrl = (process.env.RENO_TIMES_RUN_NOW_URL ?? "").trim();
     const appBaseUrl = runNowUrl ? runNowUrl.replace(/\?.*$/, "").replace(/\/api\/daily-briefing\/?$/, "").replace(/\/$/, "") : "";
     const clarifyUrl = appBaseUrl ? `${appBaseUrl}/clarify` : "";
+    const frontPageId = (process.env.NOTION_RENO_TIMES_FRONT_PAGE_ID ?? "").trim();
 
-    const runNowCallout =
-      runNowUrl &&
-      ({
-        object: "block" as const,
-        type: "callout" as const,
-        callout: {
-          icon: { type: "emoji" as const, emoji: "🔄" as const },
-          rich_text: [
-            {
-              type: "text" as const,
-              text: {
-                content: "Generate today's Reno Times",
-                link: { url: runNowUrl.slice(0, 2000) },
+  // Single line: "Generate today's edition" link only. Clarify lives in the embed at the bottom (no extra button at the top).
+    const actionLinksBlock =
+    runNowUrl
+        ? {
+            object: "block" as const,
+            type: "paragraph" as const,
+            paragraph: {
+              rich_text: [
+              {
+                type: "text" as const,
+                text: {
+                  content: "Generate today's edition",
+                  link: { url: (runNowUrl + (runNowUrl.includes("?") ? "&" : "?") + "redirect=1").slice(0, 2000) },
+                },
               },
+              ],
             },
-          ],
-          color: "blue_background" as const,
-        },
-      } as object);
+          } as object
+        : null;
 
-    const clarifyCallout =
-      clarifyUrl &&
-      ({
-        object: "block" as const,
-        type: "callout" as const,
-        callout: {
-          icon: { type: "emoji" as const, emoji: "💬" as const },
-          rich_text: [
-            {
-              type: "text" as const,
-              text: {
-                content: "Go deeper on any point (Clarify)",
-                link: { url: clarifyUrl.slice(0, 2000) },
-              },
-            },
-          ],
-          color: "gray_background" as const,
-        },
-      } as object);
-
-    const calloutBlock = editionsUrl
+    // Discreet "View all editions" at bottom.
+    const viewAllEditionsBlock = editionsUrl
       ? {
           object: "block" as const,
-          type: "callout" as const,
-          callout: {
-            icon: { type: "emoji" as const, emoji: "📰" as const },
+          type: "paragraph" as const,
+          paragraph: {
             rich_text: [
+              { type: "text" as const, text: { content: "📰 " } },
               { type: "text" as const, text: { content: "View all editions", link: { url: editionsUrl } } },
             ],
-            color: "gray_background" as const,
           },
-        }
+        } as object
       : null;
 
     const editionDateLabel = now.toLocaleDateString("en-US", {
@@ -218,77 +227,64 @@ export async function GET(req: Request) {
       },
     } as object;
 
-    const leftColumnBlocks: object[] = [editionDateBlock];
+    const sectionBlocks: object[] = [];
     for (const section of sections) {
-      leftColumnBlocks.push(...sectionToBlocks(section));
+      sectionBlocks.push(...sectionToBlocks(section));
     }
 
-    // Order: Run now + Clarify at top, then two-column (newsletter | View all editions).
-    const children: object[] = [];
-    if (runNowCallout) {
-      children.push(runNowCallout);
-    }
-    if (clarifyCallout) {
-      children.push(clarifyCallout);
-    }
+    // Edition content (no Clarify embed): used for Editions DB and as base for front page.
+    const editionChildren: object[] = [];
+    editionChildren.push(editionDateBlock);
+    if (actionLinksBlock) editionChildren.push(actionLinksBlock);
     const dividerBlock = {
       object: "block" as const,
       type: "divider" as const,
       divider: {},
     } as object;
-    children.push(dividerBlock);
-    if (calloutBlock && leftColumnBlocks.length > 0) {
-      children.push({
-        object: "block" as const,
-        type: "column_list" as const,
-        column_list: {
-          children: [
-            {
-              object: "block" as const,
-              type: "column" as const,
-              column: { width_ratio: 0.82, children: leftColumnBlocks },
-            },
-            {
-              object: "block" as const,
-              type: "column" as const,
-              column: { width_ratio: 0.18, children: [calloutBlock] },
-            },
-          ],
-        },
-      } as any);
-    } else if (calloutBlock) {
-      children.push(calloutBlock);
-    }
-    if (leftColumnBlocks.length > 0 && children.length === 0) {
-      children.push(...leftColumnBlocks);
-    }
+    editionChildren.push(dividerBlock);
+    editionChildren.push(...sectionBlocks);
+    if (viewAllEditionsBlock) editionChildren.push(viewAllEditionsBlock);
 
-    const frontPageId = (process.env.NOTION_RENO_TIMES_FRONT_PAGE_ID ?? "").trim();
+    // Replace today's edition (update existing row for this date or create one).
+    const { url } = await upsertRenoTimesEdition({
+      title,
+      date: dateStr,
+      children: editionChildren,
+    });
+
+    // Front page: same content + Clarify embed at bottom so they can clarify without opening a new tab.
+    const frontPageChildren: object[] = [...editionChildren];
     if (clarifyUrl && frontPageId) {
-      children.push({
+      const clarifyEmbedUrl = `${clarifyUrl}?appendTo=${encodeURIComponent(frontPageId)}`;
+      frontPageChildren.push({
+        object: "block" as const,
+        type: "heading_3" as const,
+        heading_3: { rich_text: [{ type: "text" as const, text: { content: "Clarify a section" } }] },
+      } as object);
+      frontPageChildren.push({
         object: "block" as const,
         type: "embed" as const,
-        embed: {
-          url: `${clarifyUrl}?appendTo=${encodeURIComponent(frontPageId)}`,
-        },
+        embed: { url: clarifyEmbedUrl.slice(0, 2000) },
       } as object);
     }
 
-    const { pageId: newPageId, url } = await createRenoTimesEdition({
-      title,
-      date: dateStr,
-      children,
-    });
-
     try {
-      await updateRenoTimesFrontPage(children);
+      await updateRenoTimesFrontPage(frontPageChildren);
     } catch (e) {
       console.error("Front page update failed (set NOTION_RENO_TIMES_FRONT_PAGE_ID to enable):", e);
     }
 
+    // If they opened the link in a browser with ?redirect=1, send them to Notion so they see the newspaper instead of a blank JSON page.
+    const wantRedirect = searchParams.get("redirect") === "1" || searchParams.get("redirect") === "true";
+    const notionFrontPageId = (process.env.NOTION_RENO_TIMES_FRONT_PAGE_ID ?? "").trim();
+    if (wantRedirect && notionFrontPageId) {
+      const notionPageUrl = `https://www.notion.so/${notionFrontPageId.replace(/-/g, "")}`;
+      return NextResponse.redirect(notionPageUrl, 302);
+    }
+
     return NextResponse.json({
       ok: true,
-      message: "The Reno Times edition created in Editions database. All editions stay there; your front page view shows only today's.",
+      message: "Today's Reno Times edition replaced (one edition per day). Front page and Editions updated.",
       editionUrl: url,
       editionTitle: title,
       date: dateStr,

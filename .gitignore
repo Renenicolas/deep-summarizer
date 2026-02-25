@@ -36,6 +36,9 @@ yarn-error.log*
 # usage data (local cost tracking)
 /data
 
+# Reno Times preview (generated in Cursor, do not commit)
+RENO_TIMES_PREVIEW.md
+
 # vercel
 .vercel
 

@@ -9,7 +9,7 @@ type ClarifyResult = {
   bullets: string[];
 };
 
-/** Section titles that appear in The Reno Times (must match heading_2 in Notion so the toggle is placed under the right section). */
+/** Section titles that appear in The Reno Times (must match heading_2 in Notion so the toggle is placed under the right section). So-what is at the end of each section only. */
 const RENO_TIMES_SECTION_TITLES = [
   "Major / Big news (reports, launches, one-off events)",
   "Crypto",
@@ -20,7 +20,6 @@ const RENO_TIMES_SECTION_TITLES = [
   "Tools & AI (new workflows, marketing, ops upgrades)",
   "Politics & Global (market impact)",
   "Foreign Markets",
-  "Conclusions / So what?",
 ];
 
 function ClarifyContent() {

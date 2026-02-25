@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { recordLlmUsage } from "@/lib/usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -45,6 +46,11 @@ export async function POST(req: Request) {
 
     const raw = response.choices[0]?.message?.content?.trim();
     if (!raw) throw new Error("No response from model");
+
+    const usage = response.usage;
+    if (usage?.input_tokens != null && usage?.output_tokens != null) {
+      recordLlmUsage(usage.input_tokens, usage.output_tokens, "clarify");
+    }
 
     const parsed = JSON.parse(raw) as { answer?: string; bullets?: string[] };
     const answer = typeof parsed.answer === "string" ? parsed.answer : "";

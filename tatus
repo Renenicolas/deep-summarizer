@@ -1,0 +1,20 @@
+[0;1;32m●[0m cloudflared-tunnel.service - Cloudflare quick tunnel to localhost:3000
+     Loaded: loaded (]8;;file://reno-times/etc/systemd/system/cloudflared-tunnel.service/etc/systemd/system/cloudflared-tunnel.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Tue 2026-02-24 01:00:18 UTC; 4min 20s ago
+   Main PID: 60079 (cloudflared)
+      Tasks: 7 (limit: 2257)
+     Memory: 13.7M (peak: 15.7M)
+        CPU: 112ms
+     CGroup: /system.slice/cloudflared-tunnel.service
+             └─[0;38;5;245m60079 /usr/bin/cloudflared tunnel --url http://127.0.0.1:3000 --protocol http2[0m
+
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF Generated Connector ID: 6c6c6525-4e8a-4603-82c8-e02afbded27b
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF Initial protocol http2
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF ICMP proxy will use 5.161.211.16 as source for IPv4
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF ICMP proxy will use 2a01:4ff:f4:713b::1 in zone eth0 as source for IPv6
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z WRN The user running cloudflared process has a GID (group ID) that is not within ping_group_range. You might need to add that user to a group within that range, or instead update the range to encompass a group the user is already in by modifying /proc/sys/net/ipv4/ping_group_range. Otherwise cloudflared will not be able to ping this network error="Group ID 0 is not between ping group 1 to 0"
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z WRN ICMP proxy feature is disabled error="cannot create ICMPv4 proxy: Group ID 0 is not between ping group 1 to 0 nor ICMPv6 proxy: socket: permission denied"
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF ICMP proxy will use 5.161.211.16 as source for IPv4
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF ICMP proxy will use 2a01:4ff:f4:713b::1 in zone eth0 as source for IPv6
+Feb 24 01:00:21 reno-times cloudflared[60079]: 2026-02-24T01:00:21Z INF Starting metrics server on 127.0.0.1:20241/metrics
+Feb 24 01:00:22 reno-times cloudflared[60079]: 2026-02-24T01:00:22Z INF Registered tunnel connection connIndex=0 connection=9e324ac2-f050-4cde-bf0a-db7933022b7e event=0 ip=198.41.192.57 location=iad10 protocol=http2

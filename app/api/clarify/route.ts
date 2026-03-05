@@ -47,7 +47,9 @@ export async function POST(req: Request) {
     const raw = response.choices[0]?.message?.content?.trim();
     if (!raw) throw new Error("No response from model");
 
-    const usage = response.usage;
+    // OpenAI types don't yet expose input_tokens/output_tokens on CompletionUsage,
+    // so treat usage as any when recording cost.
+    const usage: any = response.usage;
     if (usage?.input_tokens != null && usage?.output_tokens != null) {
       recordLlmUsage(usage.input_tokens, usage.output_tokens, "clarify");
     }

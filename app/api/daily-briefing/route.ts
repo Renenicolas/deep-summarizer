@@ -167,11 +167,6 @@ export async function GET(req: Request) {
       recordLlmUsage(inputTokens, outputTokens, "daily_briefing");
     }
 
-    const newspaperDbId = process.env.NOTION_NEWSPAPER_DATABASE_ID ?? "";
-    const editionsUrl = newspaperDbId
-      ? `https://www.notion.so/${newspaperDbId.replace(/-/g, "")}`
-      : "";
-
     const runNowUrl = (process.env.RENO_TIMES_RUN_NOW_URL ?? "").trim();
     const appBaseUrl = runNowUrl ? runNowUrl.replace(/\?.*$/, "").replace(/\/api\/daily-briefing\/?$/, "").replace(/\/$/, "") : "";
     const clarifyUrl = appBaseUrl ? `${appBaseUrl}/clarify` : "";
@@ -196,20 +191,6 @@ export async function GET(req: Request) {
             },
           } as object
         : null;
-
-    // Discreet "View all editions" at bottom.
-    const viewAllEditionsBlock = editionsUrl
-      ? {
-          object: "block" as const,
-          type: "paragraph" as const,
-          paragraph: {
-            rich_text: [
-              { type: "text" as const, text: { content: "📰 " } },
-              { type: "text" as const, text: { content: "View all editions", link: { url: editionsUrl } } },
-            ],
-          },
-        } as object
-      : null;
 
     const editionDateLabel = now.toLocaleDateString("en-US", {
       weekday: "long",
@@ -243,7 +224,6 @@ export async function GET(req: Request) {
     } as object;
     editionChildren.push(dividerBlock);
     editionChildren.push(...sectionBlocks);
-    if (viewAllEditionsBlock) editionChildren.push(viewAllEditionsBlock);
 
     // Replace today's edition (update existing row for this date or create one).
     const { url } = await upsertRenoTimesEdition({

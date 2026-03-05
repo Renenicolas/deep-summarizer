@@ -101,10 +101,10 @@ export async function buildEditionSections(): Promise<{
     )
     .join("\n");
 
-  const prompt = `You are writing The Reno Times, a daily briefing newsletter modeled after Finimize, Morning Brew, and TLDR. Digestible but with enough context that Rene fully understands each point. This should be the only news he needs to read each day (full context + what to do). Total read: under 15–20 minutes.
+  const prompt = `You are writing The Reno Times, a daily briefing newsletter modeled after Finimize, Morning Brew, and TLDR. Digestible but with enough context that Rene fully understands each point. This should be the only news he needs to read each day (full context + what to do). Assume he will NOT click the sources unless he really has to: you must bring all the key facts, numbers, and context into the newsletter itself. Total read target: ~15–20 minutes, but it is OK to go longer if needed for completeness.
 
 STYLE (Morning Brew / TLDR / Finimize):
-- Each section: short headline, then TL;DR (one sentence), then 3–6 short PARAGRAPHS (not bare bullets). Each paragraph must give CONTEXT: what happened, why it matters, who it affects, and enough background so Rene can understand without reading the source.
+- Each section: short headline, then TL;DR (one sentence), then 5–8 short PARAGRAPHS (not bare bullets). Each paragraph must give CONTEXT: what happened, why it matters, who it affects, and enough background so Rene can understand without reading the source. Think of each section as a mini deep-dive: after reading, Rene should be able to discuss that topic with anyone without further research.
 - After the paragraphs in that section, add "So what for you / Actionables": 2–3 bullets specific to Rene/Kinnect—what to do, watch, or avoid and why. So-what lives at the end of EACH section only (no separate Conclusions section).
 - Even on quieter days, still give substance: pull from recent moves, macro context, positioning, and what could happen next. Never output generic filler like "Nothing major today", "no major headlines", or "Quiet day—no major moves". Always give Rene specific, useful context and what to watch.
 - When there IS news: give full context in 2–4 sentences per point so Rene fully understands, then the so-what bullets.
@@ -118,6 +118,7 @@ RULES:
 6. CRYPTO/MARKETS: Concrete levels, catalysts, what to do (e.g. "If BTC holds above X, watch Y"). Include key NUMBERS (price today, recent range, % move over last week/month). When a standard chart exists (e.g. BTC price last 30 days), describe what the chart would show (trend, levels) and include the best source URL for that chart in "sources".
 7. TOOLS & AI: For each tool: what it is, how Rene/Kinnect could use it, cost, setup time, worth it? (yes/no + why).
 8. SOURCE LINK LABELS: Descriptive label per link so Rene knows what he'll get when he clicks.
+9. SECTION LIST IS FIXED: You must output exactly one section object for EACH section listed in "Sections and raw content" below. Do NOT drop sections, merge them, or add new ones. The "title" field in your JSON must exactly match the section titles provided (same spelling and punctuation).
 
 ${kinnectContext}
 
@@ -127,7 +128,7 @@ ${sectionTexts.map((s) => `\n## ${s.title ?? "Section"}\n${(s.text ?? "").slice(
 Available sources per section (use these exact URLs in your "sources" output; provide a descriptive "label" for each):
 ${sourcesForPrompt}
 
-Output per section: TL;DR (one sentence), then 3–6 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. Do NOT output a "Conclusions" section—so-what is at the end of each section only.
+Output per section: TL;DR (one sentence), then 5–8 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. Do NOT output a "Conclusions" section—so-what is at the end of each section only. You must return one JSON section object for EVERY section listed above (no section is optional).*** End Patch"/>
 
 Respond with valid JSON only (no markdown):
 {
@@ -173,7 +174,7 @@ Respond with valid JSON only (no markdown):
     if (!sec.sources?.length && meta?.links?.length) sec.sources = meta.links;
   }
 
-  const usage = response.usage;
+  const usage: any = response.usage;
   const inputTokens = usage?.input_tokens ?? 0;
   const outputTokens = usage?.output_tokens ?? 0;
   return { sections, inputTokens, outputTokens };

@@ -71,7 +71,15 @@ function sectionToBlocks(section: SectionContent): object[] {
   blocks.push(paragraph(tldr));
 
   const bullets = Array.isArray(section.bullets) ? section.bullets : [];
-  const soWhatIndex = bullets.findIndex((b) => typeof b === "string" && (b.toLowerCase().includes("so what") || b.toLowerCase().includes("actionables")));
+  let soWhatIndex = bullets.findIndex(
+    (b) => typeof b === "string" && (b.toLowerCase().includes("so what") || b.toLowerCase().includes("actionables"))
+  );
+
+  // If the model didn't clearly label "So what / Actionables", treat the last 2 bullets as so-what.
+  if (soWhatIndex < 0 && bullets.length >= 4) {
+    soWhatIndex = Math.max(bullets.length - 2, 1);
+  }
+
   const contentBullets = soWhatIndex >= 0 ? bullets.slice(0, soWhatIndex) : bullets;
   const soWhatBullets = soWhatIndex >= 0 ? bullets.slice(soWhatIndex) : [];
 
@@ -104,38 +112,49 @@ function heading3(content: string) {
   };
 }
 
+let isRunning = false;
+
 /**
  * The Reno Times – daily briefing.
  * Runs as early as possible (cron at 5–6 AM). Creates today's edition in The Reno Times – Editions database.
  * All editions stay in the Editions database; the front page view (filtered to today) automatically shows only today's edition.
  */
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const secret = (searchParams.get("secret") ?? "").trim();
-  const cronSecret = (process.env.CRON_SECRET ?? "").trim();
-  if (cronSecret && secret !== cronSecret) {
+  if (isRunning) {
     return NextResponse.json(
-      {
-        error: "Unauthorized",
-        hint: "The secret in the URL must exactly match CRON_SECRET. Locally: .env.local then restart (Ctrl+C, npm run dev). On VPS: .env then pm2 restart reno-times.",
-      },
-      { status: 401 }
+      { error: "Already running. A daily briefing is currently in progress. Try again in 2 minutes." },
+      { status: 429 }
     );
   }
+  isRunning = true;
 
-  const isPreview = searchParams.get("preview") === "1";
-  const newspaperId = process.env.NOTION_NEWSPAPER_DATABASE_ID;
-  if (!isPreview && !newspaperId) {
-    return NextResponse.json(
-      {
-        error:
-          "NOTION_NEWSPAPER_DATABASE_ID must be set. See FULL_SETUP_INSTRUCTIONS.md.",
-      },
-      { status: 400 }
-    );
-  }
+  const { searchParams } = new URL(req.url);
 
   try {
+    const secret = (searchParams.get("secret") ?? "").trim();
+    const cronSecret = (process.env.CRON_SECRET ?? "").trim();
+    if (cronSecret && secret !== cronSecret) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          hint:
+            "The secret in the URL must exactly match CRON_SECRET. Locally: .env.local then restart (Ctrl+C, npm run dev). On VPS: .env then pm2 restart reno-times.",
+        },
+        { status: 401 }
+      );
+    }
+
+    const isPreview = searchParams.get("preview") === "1";
+    const newspaperId = process.env.NOTION_NEWSPAPER_DATABASE_ID;
+    if (!isPreview && !newspaperId) {
+      return NextResponse.json(
+        {
+          error:
+            "NOTION_NEWSPAPER_DATABASE_ID must be set. See FULL_SETUP_INSTRUCTIONS.md.",
+        },
+        { status: 400 }
+      );
+    }
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
     const title = editionTitle(now);
@@ -273,5 +292,7 @@ export async function GET(req: Request) {
     const message = e instanceof Error ? e.message : "Daily briefing failed";
     console.error("Daily briefing error:", e);
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    isRunning = false;
   }
 }

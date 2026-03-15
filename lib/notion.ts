@@ -307,12 +307,10 @@ export async function findTodayEditionPageId(dateStr: string): Promise<string | 
   if (!apiKey || !databaseId) return null;
 
   const notion = new Client({ auth: apiKey });
-  const id = databaseId.replace(/-/g, "");
   try {
-    const response = (await notion.dataSources.query({
-      data_source_id: id,
+    const response = (await notion.databases.query({
+      database_id: databaseId.replace(/-/g, ""),
       page_size: 1,
-      result_type: "page",
       filter: { property: "Date", date: { equals: dateStr } } as any,
     })) as { results?: { id?: string }[] };
     const first = response.results?.[0];

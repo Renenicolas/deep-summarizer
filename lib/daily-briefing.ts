@@ -2,6 +2,29 @@ import Parser from "rss-parser";
 import OpenAI from "openai";
 import { RENO_TIMES_SECTIONS, RENO_TIMES_FORMAT } from "./daily-briefing-config";
 
+async function serperSearch(query: string): Promise<string> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) {
+    console.warn("[Serper] SERPER_API_KEY not set, skipping search for:", query);
+    return "";
+  }
+  try {
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, num: 5 }),
+    });
+    const data = await res.json();
+    const results = (data.organic ?? []) as { title?: string; snippet?: string; link?: string }[];
+    return results
+      .map((r, i) => `[${i + 1}] ${r.title ?? ""}\n${r.snippet ?? ""}\nURL: ${r.link ?? ""}`)
+      .join("\n\n");
+  } catch (e) {
+    console.warn("[Serper] Search failed for:", query, e);
+    return "";
+  }
+}
+
 const parser = new Parser();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -74,6 +97,30 @@ export async function buildEditionSections(): Promise<{
     });
   }
 
+  // Enrich major_news with live search
+  const majorNewsSection = sectionTexts.find((s) => s.id === "major_news");
+  if (majorNewsSection) {
+    const today = new Date().toISOString().slice(0, 10);
+    const searchText =
+      (await serperSearch(`top news today ${today}`)) +
+      "\n\n" +
+      (await serperSearch(`market moving news ${today}`));
+    if (searchText.trim()) majorNewsSection.text = (majorNewsSection.text ?? "") + "\n\n" + searchText;
+  }
+
+  // Enrich kinnect_scout with live search
+  const kinnectScoutSection = sectionTexts.find((s) => s.id === "kinnect_scout");
+  if (kinnectScoutSection) {
+    const searches = await Promise.all([
+      serperSearch("orthodontic recruiting software 2026"),
+      serperSearch("dental staffing startup funding 2026"),
+      serperSearch("DSO recruiting technology news"),
+      serperSearch("orthodontic resident job market 2026"),
+    ]);
+    const searchText = searches.filter(Boolean).join("\n\n");
+    if (searchText.trim()) kinnectScoutSection.text = (kinnectScoutSection.text ?? "") + "\n\n" + searchText;
+  }
+
   if (sectionTexts.length === 0) {
     return {
       sections: [
@@ -89,10 +136,27 @@ export async function buildEditionSections(): Promise<{
     };
   }
 
-  const kinnectContext = `Kinnect context (for Healthcare + Kinnect Scout sections):
-- Kinnect is a three-sided platform that matches traditionally underserved medical private practices with residents (starting with orthodontics).
-- It modernizes recruiting with AI matching (preferences + culture/fit), retains users via guided mentorship, and enables knowledge/expertise exchange throughout a doctor's career lifecycle.
-- Key pain points: prehistoric recruiting, private practices lose to hospitals, bad fits from centralized recruiting, headhunters cost ~15% of first-year salary, lack of mentors for private-practice realities, lack of always-on expertise channels.`;
+  const kinnectContext = `Kinnect context — read carefully before writing every section:
+
+COMPANY: Kinnect is a three-sided platform matching orthodontic residents with private practices and DSOs. Core value: AI-powered culture-fit matching, mentorship continuity, and an always-on expertise channel. Pre-revenue, MVP in progress. Next major milestone: AAO conference April 30, 2026.
+
+ICP:
+- Residents: PGY1-3 orthodontic residents who want private practice over hospital systems but have no good way to find the right culture fit
+- Practices: 1-3 doctor private orthodontic offices losing recruiting battles to DSOs and hospitals; currently paying headhunters ~15% of first-year salary for bad fits
+- DSOs: secondary, longer-term target
+
+COMPETITORS TO WATCH: OrthoFi (patient financing/practice ops), RevenueWell (patient comms), Rhinogram (telehealth messaging), generic job boards (Indeed, LinkedIn), dental-specific headhunters, any startup that recently raised in dental/orthodontic staffing or practice management tech
+
+CURRENT FOCUS: outreach and onboarding (residents + practices), Delphi AI "expert brain" concept (digital twin trained on top orthodontist expertise and case records), AAO booth/presence strategy
+
+RENE'S PERSONAL MARKET CONTEXT: early-stage solo founder, long investment horizon, holds BTC, interested in macro and rates insofar as they affect startup fundraising conditions and consumer spending on elective dental/orthodontic work; interested in AI tools that reduce solo-founder overhead and can be evaluated quickly on cost vs. ROI
+
+WHAT RENE DOES NOT WANT — ENFORCE THESE STRICTLY:
+- Generic "founder advice" that applies to any startup — every So What bullet must name Kinnect, residents, practices, or DSOs specifically
+- Filler phrases like "keep an eye on X" or "monitor Y" without saying exactly what to watch for and why it matters to Kinnect
+- Any section that uses the words "quiet day", "nothing major", "no significant news", or any equivalent
+- Surface-level crypto commentary — always include specific price levels, the catalyst, and a clear action or decision threshold
+- Bullet points that could apply to any founder or any company — if it doesn't mention orthodontics, recruiting, or Kinnect's specific situation, rewrite it`;
 
   const sourcesForPrompt = sectionTexts
     .map(
@@ -128,7 +192,7 @@ ${sectionTexts.map((s) => `\n## ${s.title ?? "Section"}\n${(s.text ?? "").slice(
 Available sources per section (use these exact URLs in your "sources" output; provide a descriptive "label" for each):
 ${sourcesForPrompt}
 
-Output per section: TL;DR (one sentence), then 5–8 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. Do NOT output a "Conclusions" section—so-what is at the end of each section only. You must return one JSON section object for EVERY section listed above (no section is optional).*** End Patch"/>
+Output per section: TL;DR (one sentence), then 5–8 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. Do NOT output a "Conclusions" section—so-what is at the end of each section only. You must return one JSON section object for EVERY section listed above (no section is optional).
 
 Respond with valid JSON only (no markdown):
 {
@@ -139,10 +203,10 @@ Respond with valid JSON only (no markdown):
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_tokens: 8000,
+    max_tokens: 16000,
   });
 
   const raw = response.choices[0]?.message?.content?.trim();

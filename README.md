@@ -23,6 +23,7 @@ Next.js App Router fullstack app: summarize text, PDFs, URLs (YouTube, articles,
    Copy `.env.example` to `.env.local` and fill in:
 
    - **OPENAI_API_KEY** — Required for summarization and TTS. Get from [OpenAI API keys](https://platform.openai.com/api-keys).
+   - **SERPER_API_KEY** — Serper web search API; enriches `major_news` and `kinnect_scout` Reno Times sections with live search results.
    - **NEXTAUTH_SECRET** — Random string for session encryption (e.g. `openssl rand -base64 32`).
    - **NEXTAUTH_URL** — Must be `http://127.0.0.1:3000` for Spotify auth to work.
    - **SPOTIFY_CLIENT_ID** and **SPOTIFY_CLIENT_SECRET** — From [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). Add these Redirect URIs in your app settings:

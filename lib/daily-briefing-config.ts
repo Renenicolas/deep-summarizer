@@ -29,7 +29,11 @@ export const RENO_TIMES_SECTIONS: SectionConfig[] = [
     id: "major_news",
     title: "Major / Big news (reports, launches, one-off events)",
     optional: true,
-    // No feed; LLM fills only when something big (Bain report, McKinsey, major launch, etc.)
+    feedUrl: [
+      "https://feeds.npr.org/1001/rss.xml",
+      "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+      "https://feeds.bbci.co.uk/news/rss.xml",
+    ],
   },
   { id: "crypto", title: "Crypto", feedUrl: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
   {
@@ -56,13 +60,18 @@ export const RENO_TIMES_SECTIONS: SectionConfig[] = [
     feedUrl: [
       "https://www.beckershospitalreview.com/rss.xml",
       "https://www.modernhealthcare.com/rss.xml",
-      // "https://www.dentaleconomics.com/rss.xml", // Uncomment if needed
+      "https://www.ada.org/rss/news",
+      "https://www.dentistryiq.com/rss.xml",
+      "https://www.dentaleconomics.com/rss.xml",
     ],
   },
   {
     id: "kinnect_scout",
     title: "Kinnect Scout (Competitors, threats, moves to watch)",
-    // No RSS feed; LLM will generate watchlist based on context from other sections
+    feedUrl: [
+      "https://news.crunchbase.com/feed/",
+      "https://techcrunch.com/tag/health-tech/feed/",
+    ],
   },
   {
     id: "tools_ai",

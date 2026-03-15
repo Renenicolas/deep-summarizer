@@ -75,12 +75,6 @@ export async function buildEditionSections(): Promise<{
   for (const section of RENO_TIMES_SECTIONS) {
     let text = "";
     const allLinks: { label: string; url: string }[] = [];
-    const sectionId = section.id as string;
-    if (sectionId === "major_news") {
-      text = `Today's date: ${todayLabel}. If there is a major release or one-off event (Bain report, McKinsey, big product launch, major regulatory news), write 2–4 short paragraphs with context and "So what for you / Actionables". If nothing like that today, still give a one-line TL;DR and 1–2 short paragraphs: what to keep an eye on or what could land soon.`;
-      sectionTexts.push({ id: section.id, title: section.title, text, links: [] });
-      continue;
-    }
     if (section.feedUrl) {
       const urls = Array.isArray(section.feedUrl) ? section.feedUrl : [section.feedUrl];
       const results = await Promise.all(urls.map((url) => fetchRssFeedWithLinks(url)));
@@ -165,42 +159,62 @@ WHAT RENE DOES NOT WANT — ENFORCE THESE STRICTLY:
     )
     .join("\n");
 
-  const prompt = `You are writing The Reno Times, a daily briefing newsletter modeled after Finimize, Morning Brew, and TLDR. Digestible but with enough context that Rene fully understands each point. This should be the only news he needs to read each day (full context + what to do). Assume he will NOT click the sources unless he really has to: you must bring all the key facts, numbers, and context into the newsletter itself. Total read target: ~15–20 minutes, but it is OK to go longer if needed for completeness.
+  const prompt = `You are writing The Reno Times — Rene's only daily news source. He reads this instead of everything else. Your job is to make him genuinely informed on every topic, not just aware of it. After reading each section he should be able to discuss that topic with an expert without having read anything else.
 
-STYLE (Morning Brew / TLDR / Finimize):
-- Each section: short headline, then TL;DR (one sentence), then 5–8 short PARAGRAPHS (not bare bullets). Each paragraph must give CONTEXT: what happened, why it matters, who it affects, and enough background so Rene can understand without reading the source. Think of each section as a mini deep-dive: after reading, Rene should be able to discuss that topic with anyone without further research.
-- After the paragraphs in that section, add "So what for you / Actionables": 2–3 bullets specific to Rene/Kinnect—what to do, watch, or avoid and why. So-what lives at the end of EACH section only (no separate Conclusions section).
-- Even on quieter days, still give substance: pull from recent moves, macro context, positioning, and what could happen next. Never output generic filler like "Nothing major today", "no major headlines", or "Quiet day—no major moves". Always give Rene specific, useful context and what to watch.
-- When there IS news: give full context in 2–4 sentences per point so Rene fully understands, then the so-what bullets.
+TARGET LENGTH: 2,500–3,500 words total across all sections. Never go under this. If a section has thin RSS data, fill it with essential background context, historical patterns, what experts are watching, and what the range of outcomes looks like. Never write less than 4 full paragraphs per section regardless of news volume.
 
-RULES:
-1. Middle-school language: simple, clear, no jargon without explaining.
-2. Every point specific—no filler. Say exactly what happened, why it matters, and what to do.
-3. SO WHAT AT END OF EACH SECTION (REQUIRED): 2–3 bullets "So what for you / Actionables" for that section only.
-4. INSTITUTIONAL MEMORY: Reference recent context where relevant. Be specific to Rene's company and life.
-5. PUBLIC MARKETS: (a) Overall market – professional view (macro, indices, rates, catalysts). (b) Top stocks – 3–5 with thesis, risk, what to watch. Include key NUMBERS: recent moves (today, last week, last month) and important levels.
-6. CRYPTO/MARKETS: Concrete levels, catalysts, what to do (e.g. "If BTC holds above X, watch Y"). Include key NUMBERS (price today, recent range, % move over last week/month). When a standard chart exists (e.g. BTC price last 30 days), describe what the chart would show (trend, levels) and include the best source URL for that chart in "sources".
-7. TOOLS & AI: For each tool: what it is, how Rene/Kinnect could use it, cost, setup time, worth it? (yes/no + why).
-8. SOURCE LINK LABELS: Descriptive label per link so Rene knows what he'll get when he clicks.
-9. SECTION LIST IS FIXED: You must output exactly one section object for EACH section listed in "Sections and raw content" below. Do NOT drop sections, merge them, or add new ones. The "title" field in your JSON must exactly match the section titles provided (same spelling and punctuation).
+STYLE:
+- Each paragraph: minimum 4 sentences. First sentence = what happened. Second = why it happened / root cause. Third = who it affects and how. Fourth = what comes next / what to watch.
+- Write like The Economist meets Morning Brew: authoritative but readable. No jargon without a plain-English explanation immediately after.
+- Numbers always: prices, percentages, dates, dollar amounts. Never say "rising prices" — say "up 12% over the past 3 weeks."
+- Never use these phrases: "keep an eye on", "stay informed", "be vigilant", "monitor X", "quiet day", "no major news", "nothing significant today", "it's important to", "it's crucial to", or any variant. Every sentence must state a specific fact or action, not a vague suggestion.
+
+STRUCTURE PER SECTION:
+1. One-sentence TL;DR at the top (bold)
+2. 5–8 paragraphs of deep coverage (4+ sentences each)
+3. "So what for Kinnect" — exactly 3 bullets, each must:
+   - Name a specific company, person, number, or event from this section
+   - Explain exactly what Rene should do, decide, or prepare for
+   - Never be applicable to any founder other than Rene / Kinnect specifically
+
+ABSOLUTE RULES:
+- If a section has little RSS data: use the data you have, then add 2-3 paragraphs of essential background context (history, players, mechanics) so Rene understands the full landscape — not filler, real education.
+- Crypto: always include BTC price today, % change over last 7 days, key support/resistance levels, and one specific action threshold (e.g. "if BTC closes above $X this week, watch for Y").
+- Public Markets: always include S&P 500 and Nasdaq levels today, what moved them, and 2-3 specific stocks with thesis and price levels.
+- Healthcare/Kinnect Scout: if no orthodontic news today, cover the broader dental/DSO landscape, recent funding rounds in the space, or recruiting tech trends — always with specific company names and numbers.
+- Tools & AI: evaluate each tool for Kinnect specifically — cost, setup time, whether Rene alone can implement it, yes/no verdict.
 
 ${kinnectContext}
 
 Sections and raw content:
 ${sectionTexts.map((s) => `\n## ${s.title ?? "Section"}\n${(s.text ?? "").slice(0, 2500)}`).join("\n")}
 
-Available sources per section (use these exact URLs in your "sources" output; provide a descriptive "label" for each):
+Available sources per section:
 ${sourcesForPrompt}
 
-Output per section: TL;DR (one sentence), then 5–8 short paragraphs (each with full context so Rene understands—no bare bullets without explanation), then 2–3 bullets "So what for you / Actionables", then "sources" with url + descriptive label. Do NOT output a "Conclusions" section—so-what is at the end of each section only. You must return one JSON section object for EVERY section listed above (no section is optional).
-
-Respond with valid JSON only (no markdown):
+OUTPUT FORMAT — valid JSON only, no markdown:
 {
   "sections": [
-    { "id": "section_id", "title": "Section Title", "tldr": "One sentence summary", "bullets": ["Paragraph 1: what happened and why.", "Paragraph 2: context and implications.", "So what / Actionables: what Rene should do/watch/avoid.", "So what / Actionables: ..."], "sources": [ { "url": "exact URL from list", "label": "Short phrase: what reader will learn" } ] },
-    ...
+    {
+      "id": "section_id",
+      "title": "exact section title from config",
+      "tldr": "one bold sentence",
+      "bullets": [
+        "Paragraph 1 (4+ sentences: what, why, who, what next)",
+        "Paragraph 2",
+        "Paragraph 3",
+        "Paragraph 4",
+        "Paragraph 5",
+        "So what for Kinnect: specific action referencing a named company/number from this section",
+        "So what for Kinnect: specific decision or preparation item",
+        "So what for Kinnect: specific watch item with a named trigger"
+      ],
+      "sources": [{"url": "exact url", "label": "what reader learns"}]
+    }
   ]
-}`;
+}
+
+You must output one section object for every section in the list above. No exceptions. Minimum 2,500 words total across all sections.`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
